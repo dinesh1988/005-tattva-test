@@ -361,7 +361,7 @@
             
             // Birth Chart
             document.getElementById('lagna').textContent = result.birth_chart.lagna.sign;
-            document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.degree.toFixed(2);
+            document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.degree ? result.birth_chart.lagna.degree.toFixed(2) : 'N/A';
             
             const sunPlanet = result.birth_chart.planets.find(p => p.planet === 'Sun');
             const moonPlanet = result.birth_chart.planets.find(p => p.planet === 'Moon');
