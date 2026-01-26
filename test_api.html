@@ -227,6 +227,15 @@
                 <span class="example-btn" onclick="fillExample()">Use Example Data</span>
             </div>
             
+            <div class="example-data" style="background: #e8f5e9;">
+                <strong>💾 Saved Profiles:</strong>
+                <select id="savedProfiles" style="width: 70%; padding: 5px; margin: 10px 0; border-radius: 5px;">
+                    <option value="">-- Select a saved profile --</option>
+                </select>
+                <span class="example-btn" onclick="loadProfile()" style="background: #4caf50;">Load</span>
+                <span class="example-btn" onclick="deleteProfile()" style="background: #f44336; margin-left: 5px;">Delete</span>
+            </div>
+            
             <form id="birthForm">
                 <div class="form-group">
                     <label for="name">👤 Full Name</label>
@@ -249,6 +258,7 @@
                 </div>
                 
                 <button type="submit" id="submitBtn">Generate Astrological Profile</button>
+                <button type="button" onclick="saveProfile()" style="margin-top: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">💾 Save This Profile</button>
             </form>
             
             <div class="loading" id="loading">
@@ -301,6 +311,94 @@
     
     <script>
         const API_URL = 'https://tattva-api-387275429365.us-central1.run.app/api/v1/profile/complete';
+        
+        // Load saved profiles on page load
+        window.onload = function() {
+            loadSavedProfilesList();
+        };
+        
+        function loadSavedProfilesList() {
+            const select = document.getElementById('savedProfiles');
+            select.innerHTML = '<option value="">-- Select a saved profile --</option>';
+            
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            
+            Object.keys(profiles).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = `${key}: ${profiles[key].name}`;
+                select.appendChild(option);
+            });
+        }
+        
+        function saveProfile() {
+            const name = document.getElementById('name').value;
+            const birth_date = document.getElementById('birth_date').value;
+            const birth_time = document.getElementById('birth_time').value;
+            const birth_place = document.getElementById('birth_place').value;
+            
+            if (!name || !birth_date || !birth_time || !birth_place) {
+                alert('Please fill all fields before saving!');
+                return;
+            }
+            
+            const profileName = prompt('Enter profile name (e.g., Profile 1, Mom, Dad):', 'Profile 1');
+            if (!profileName) return;
+            
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            profiles[profileName] = {
+                name: name,
+                birth_date: birth_date,
+                birth_time: birth_time,
+                birth_place: birth_place,
+                saved_at: new Date().toISOString()
+            };
+            
+            localStorage.setItem('astroProfiles', JSON.stringify(profiles));
+            loadSavedProfilesList();
+            alert(`Profile "${profileName}" saved successfully!`);
+        }
+        
+        function loadProfile() {
+            const select = document.getElementById('savedProfiles');
+            const profileName = select.value;
+            
+            if (!profileName) {
+                alert('Please select a profile to load!');
+                return;
+            }
+            
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            const profile = profiles[profileName];
+            
+            if (profile) {
+                document.getElementById('name').value = profile.name;
+                document.getElementById('birth_date').value = profile.birth_date;
+                document.getElementById('birth_time').value = profile.birth_time;
+                document.getElementById('birth_place').value = profile.birth_place;
+                alert(`Profile "${profileName}" loaded!`);
+            }
+        }
+        
+        function deleteProfile() {
+            const select = document.getElementById('savedProfiles');
+            const profileName = select.value;
+            
+            if (!profileName) {
+                alert('Please select a profile to delete!');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete "${profileName}"?`)) {
+                return;
+            }
+            
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            delete profiles[profileName];
+            localStorage.setItem('astroProfiles', JSON.stringify(profiles));
+            loadSavedProfilesList();
+            alert(`Profile "${profileName}" deleted!`);
+        }
         
         function fillExample() {
             document.getElementById('name').value = 'John Doe';
