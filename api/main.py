@@ -673,21 +673,32 @@ async def get_complete_profile(birth_data: BirthData):
     }
     
     # 3. PANCHANG with interpretations
-    tithi_data = get_tithi(astro_time)
-    nakshatra_data = get_nakshatra(get_planet_longitude(Planet.Moon, astro_time))
-    yoga_data = get_yoga(astro_time)
+    # Get Sun and Moon longitudes for panchang calculations
+    sun_long = get_planet_longitude(Planet.Sun, astro_time)
+    moon_long = get_planet_longitude(Planet.Moon, astro_time)
+    
+    # Calculate panchang elements
+    tithi_name, tithi_num, tithi_pct = get_tithi(sun_long, moon_long)
+    nakshatra_name, nakshatra_num, nakshatra_pct, nakshatra_pada = get_nakshatra(moon_long)
+    yoga_name, yoga_num = get_yoga(sun_long, moon_long)
     
     panchang = {
         'tithi': {
-            **tithi_data,
+            'name': tithi_name,
+            'number': tithi_num,
+            'percentage': round(tithi_pct, 2),
             'interpretation': f"Tithi indicates lunar phase energy affecting emotional and mental states."
         },
         'nakshatra': {
-            **nakshatra_data,
+            'name': nakshatra_name,
+            'number': nakshatra_num,
+            'pada': nakshatra_pada,
+            'percentage': round(nakshatra_pct, 2),
             'interpretation': f"Birth nakshatra determines core personality traits, life path, and karmic tendencies."
         },
         'yoga': {
-            **yoga_data,
+            'name': yoga_name,
+            'number': yoga_num,
             'interpretation': "Daily yoga indicates auspicious combinations affecting success and fortune."
         },
         'weekday': birth_datetime.strftime('%A'),
