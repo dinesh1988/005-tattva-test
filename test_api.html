@@ -289,6 +289,11 @@
                 </div>
                 
                 <div class="result-section">
+                    <h3>🏠 D1 Chart - Houses & Planets</h3>
+                    <div id="house_chart" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;"></div>
+                </div>
+                
+                <div class="result-section">
                     <h3>⭐ Active Yogas</h3>
                     <ul class="yoga-list" id="yoga_list"></ul>
                 </div>
@@ -499,6 +504,9 @@
             document.getElementById('moon_nakshatra_detail').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
             document.getElementById('moon_pada').textContent = moonPlanet ? moonPlanet.pada : 'N/A';
             
+            // D1 House Chart
+            displayHouseChart(result.birth_chart);
+            
             // Active Yogas
             const activeYogas = result.yogas.filter(y => y.present);
             const yogaList = document.getElementById('yoga_list');
@@ -551,6 +559,118 @@
             const errorDiv = document.getElementById('error');
             errorDiv.textContent = `Error: ${message}`;
             errorDiv.classList.add('active');
+        }
+        
+        function displayHouseChart(birthChart) {
+            const houseChart = document.getElementById('house_chart');
+            houseChart.innerHTML = '';
+            
+            // House meanings for tooltips
+            const houseMeanings = {
+                1: 'Self, personality, physical body',
+                2: 'Wealth, family, speech',
+                3: 'Siblings, courage, communication',
+                4: 'Mother, home, happiness',
+                5: 'Children, creativity, romance',
+                6: 'Enemies, health, service',
+                7: 'Partnership, marriage, spouse',
+                8: 'Longevity, transformation, occult',
+                9: 'Fortune, father, dharma',
+                10: 'Career, status, achievements',
+                11: 'Gains, friendships, aspirations',
+                12: 'Losses, spirituality, liberation'
+            };
+            
+            // Group planets by house
+            const houseData = {};
+            for (let i = 1; i <= 12; i++) {
+                houseData[i] = {
+                    planets: [],
+                    sign: ''
+                };
+            }
+            
+            // Add Lagna to house 1
+            houseData[1].sign = birthChart.lagna.rasi;
+            
+            // Add planets to their houses
+            birthChart.planets.forEach(planet => {
+                if (planet.house) {
+                    houseData[planet.house].planets.push(planet.planet);
+                    if (!houseData[planet.house].sign) {
+                        houseData[planet.house].sign = planet.rasi;
+                    }
+                }
+            });
+            
+            // Create house boxes
+            for (let house = 1; house <= 12; house++) {
+                const houseBox = document.createElement('div');
+                houseBox.style.cssText = `
+                    border: 2px solid #667eea;
+                    border-radius: 8px;
+                    padding: 12px;
+                    background: ${house === 1 ? 'linear-gradient(135deg, #667eea22 0%, #764ba222 100%)' : '#f9f9f9'};
+                    min-height: 100px;
+                    position: relative;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    cursor: pointer;
+                `;
+                
+                houseBox.onmouseover = function() {
+                    this.style.transform = 'translateY(-3px)';
+                    this.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                };
+                houseBox.onmouseout = function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = 'none';
+                };
+                
+                houseBox.title = houseMeanings[house];
+                
+                let houseHTML = `
+                    <div style="font-weight: 700; color: #667eea; margin-bottom: 5px; font-size: 14px;">
+                        House ${house}
+                    </div>
+                    <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
+                        ${houseMeanings[house]}
+                    </div>
+                `;
+                
+                if (houseData[house].sign) {
+                    houseHTML += `
+                        <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 5px;">
+                            Sign: ${houseData[house].sign}
+                        </div>
+                    `;
+                }
+                
+                if (house === 1) {
+                    houseHTML += `<div style="color: #e91e63; font-weight: 600; font-size: 12px; margin-bottom: 3px;">↑ Lagna</div>`;
+                }
+                
+                if (houseData[house].planets.length > 0) {
+                    houseHTML += `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">`;
+                    houseData[house].planets.forEach(planet => {
+                        const planetEmoji = {
+                            'Sun': '☉', 'Moon': '☽', 'Mars': '♂', 'Mercury': '☿',
+                            'Jupiter': '♃', 'Venus': '♀', 'Saturn': '♄', 
+                            'Rahu': '☊', 'Ketu': '☋'
+                        };
+                        houseHTML += `
+                            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                        color: white; padding: 4px 8px; border-radius: 4px; 
+                                        margin: 3px 0; font-size: 11px; font-weight: 600;">
+                                ${planetEmoji[planet] || ''} ${planet}
+                            </div>
+                        `;
+                    });
+                    houseHTML += `</div>`;
+                }
+                
+                houseBox.innerHTML = houseHTML;
+                houseChart.appendChild(houseBox);
+            }
         }
         
         function generateReadableSummary(result) {

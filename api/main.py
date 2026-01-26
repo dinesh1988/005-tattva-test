@@ -538,6 +538,7 @@ async def get_complete_profile(birth_data: BirthData):
     import pytz
     from logic.yogas import get_all_yogas
     from logic.lordship import get_lord_of_house
+    from logic.psychic_profile import get_house_from_longitude
     
     # Helper function for rasi interpretations
     def get_rasi_interpretation(rasi_name, planet_name=None):
@@ -614,6 +615,11 @@ async def get_complete_profile(birth_data: BirthData):
     psychic_profile = get_psychic_profile(birth_datetime_tz, lat, lon)
     
     # 2. BIRTH CHART - Enhanced with interpretations
+    # First get Lagna longitude for house calculations
+    lagna_long = get_lagnam(astro_time)
+    lagna_rasi_num = int(lagna_long / 30) + 1
+    lagna_rasi = RASIS[lagna_rasi_num - 1]
+    
     planets_data = []
     moon_sign = None
     sun_sign = None
@@ -624,6 +630,9 @@ async def get_complete_profile(birth_data: BirthData):
         rasi_num = int(longitude / 30) + 1
         rasi_name = RASIS[rasi_num - 1]
         nakshatra = get_nakshatra(longitude)
+        
+        # Calculate house position
+        house = get_house_from_longitude(longitude, lagna_long)
         
         if planet == Planet.Moon:
             moon_sign = rasi_name
@@ -641,6 +650,7 @@ async def get_complete_profile(birth_data: BirthData):
             'longitude': round(longitude, 2),
             'rasi': rasi_name,
             'rasi_num': rasi_num,
+            'house': house,
             'nakshatra': nakshatra_name,
             'pada': nakshatra_pada,
             'interpretation': {
@@ -652,10 +662,7 @@ async def get_complete_profile(birth_data: BirthData):
             }
         })
     
-    # Lagna with interpretation
-    lagna_long = get_lagnam(astro_time)
-    lagna_rasi_num = int(lagna_long / 30) + 1
-    lagna_rasi = RASIS[lagna_rasi_num - 1]
+    # Lagna interpretation (already calculated above)
     lagna_interp = get_rasi_interpretation(lagna_rasi)
     
     lagna_data = {
