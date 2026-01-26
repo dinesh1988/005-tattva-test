@@ -766,7 +766,7 @@ async def get_complete_profile(birth_data: BirthData):
         'psychic_archetype': psychic_profile['title'],
         'active_yogas_count': len(active_yogas),
         'dominant_yogas': active_yogas[:5],
-        'current_dasa_planet': dasa_data.get('mahadasa', {}).get('planet', 'Unknown'),
+        'current_dasa_planet': dasa_interpretation.get('mahadasa', {}).get('planet', 'Unknown'),
         'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
         'numerology_summary': f"Life Path {numerology.get('life_path_number', 0)} indicates {numerology.get('life_path_meaning', '')}",
         'prediction_readiness': {
@@ -780,8 +780,8 @@ async def get_complete_profile(birth_data: BirthData):
     # 8. PREDICTION FRAMEWORK for AI
     prediction_framework = {
         'immediate_influences': {
-            'current_dasa': dasa_data.get('mahadasa', {}),
-            'current_antardasa': dasa_data.get('antardasa', {}),
+            'current_dasa': dasa_interpretation.get('mahadasa', {}),
+            'current_antardasa': dasa_interpretation.get('bhukti', {}),
             'active_yogas': active_yogas[:3]
         },
         'life_area_predictions': {
@@ -817,7 +817,7 @@ async def get_complete_profile(birth_data: BirthData):
         'timing_triggers': {
             'current_year': current_year,
             'age': age,
-            'dasa_end_year': dasa_data.get('mahadasa', {}).get('end_date', 'Unknown'),
+            'dasa_end_year': 'N/A',  # Would need full dasa calculation for end date
             'critical_ages': [21, 28, 35, 42, 49, 56, 63],  # Saturn returns and other milestones
             'next_milestone': next((a for a in [21, 28, 35, 42, 49, 56, 63] if a > age), None)
         }
