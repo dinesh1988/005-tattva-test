@@ -708,16 +708,21 @@ async def get_complete_profile(birth_data: BirthData):
     }
     
     # 4. DASA PERIODS with timing
-    dasa_data = get_vimshottari_dasa(astro_time)
+    # Get current date for dasa calculation
+    current_dt = datetime.now(birth_datetime_tz.tzinfo)
+    # Use nakshatra values already calculated above
+    maha_dasa, bhukti = get_vimshottari_dasa(nakshatra_num, nakshatra_pct, birth_datetime_tz, current_dt)
+    
     current_year = datetime.now().year
     birth_year = birth_datetime.year
     age = current_year - birth_year
     
     dasa_interpretation = {
-        **dasa_data,
+        'mahadasa': maha_dasa,
+        'bhukti': bhukti,
         'current_age': age,
         'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
-        'prediction_note': f"Currently in {dasa_data.get('mahadasa', {}).get('planet', 'Unknown')} Mahadasa - this planet's significations are dominant in life now."
+        'prediction_note': f"Currently in {maha_dasa.get('planet', 'Unknown')} Mahadasa - this planet's significations are dominant in life now."
     }
     
     # 5. YOGAS with detailed interpretations
