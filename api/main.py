@@ -711,18 +711,23 @@ async def get_complete_profile(birth_data: BirthData):
     # Get current date for dasa calculation
     current_dt = datetime.now(birth_datetime_tz.tzinfo)
     # Use nakshatra values already calculated above
-    maha_dasa, bhukti = get_vimshottari_dasa(nakshatra_num, nakshatra_pct, birth_datetime_tz, current_dt)
+    maha_dasa_planet, bhukti_planet = get_vimshottari_dasa(nakshatra_num, nakshatra_pct, birth_datetime_tz, current_dt)
     
     current_year = datetime.now().year
     birth_year = birth_datetime.year
     age = current_year - birth_year
     
     dasa_interpretation = {
-        'mahadasa': maha_dasa,
-        'bhukti': bhukti,
+        'mahadasa': {
+            'planet': maha_dasa_planet,
+            'duration_years': 6 if maha_dasa_planet == 'Sun' else 10 if maha_dasa_planet == 'Moon' else 7 if maha_dasa_planet == 'Mars' else 18 if maha_dasa_planet == 'Rahu' else 16 if maha_dasa_planet == 'Jupiter' else 19 if maha_dasa_planet == 'Saturn' else 17 if maha_dasa_planet == 'Mercury' else 20 if maha_dasa_planet == 'Venus' else 7  # Ketu
+        },
+        'bhukti': {
+            'planet': bhukti_planet
+        },
         'current_age': age,
         'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
-        'prediction_note': f"Currently in {maha_dasa.get('planet', 'Unknown')} Mahadasa - this planet's significations are dominant in life now."
+        'prediction_note': f"Currently in {maha_dasa_planet} Mahadasa - this planet's significations are dominant in life now."
     }
     
     # 5. YOGAS with detailed interpretations
