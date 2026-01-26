@@ -611,7 +611,7 @@ async def get_complete_profile(birth_data: BirthData):
         raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
     
     # 1. PSYCHIC PROFILE
-    psychic_profile = get_psychic_profile(astro_time)
+    psychic_profile = get_psychic_profile(birth_datetime_tz, lat, lon)
     
     # 2. BIRTH CHART - Enhanced with interpretations
     planets_data = []
