@@ -537,7 +537,7 @@ async def get_complete_profile(birth_data: BirthData):
     """
     import pytz
     from logic.yogas import get_all_yogas
-    from logic.lordship import get_house_lord
+    from logic.lordship import get_lord_of_house
     
     # Helper function for rasi interpretations
     def get_rasi_interpretation(rasi_name, planet_name=None):
@@ -665,7 +665,7 @@ async def get_complete_profile(birth_data: BirthData):
             'quality': lagna_interp.get('quality', ''),
             'life_focus': lagna_interp.get('areas', []),
             'traits': lagna_interp.get('traits', []),
-            'ruling_planet': get_house_lord(lagna_rasi_num, astro_time).name
+            'ruling_planet': get_lord_of_house(1, astro_time).name
         }
     }
     
