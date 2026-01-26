@@ -534,22 +534,45 @@
         function generateReadableSummary(result) {
             const summary = document.getElementById('readable_summary');
             
-            let html = `
-                <div style="font-size: 14px; line-height: 1.8;">
+            // Helper function to safely access nested properties
+            const safe = (fn, fallback = 'N/A') => {
+                try {
+                    const value = fn();
+                    return value !== undefined && value !== null ? value : fallback;
+                } catch (e) {
+                    return fallback;
+                }
+            };
+            
+            let html = '<div style="font-size: 14px; line-height: 1.8;">';
+            
+            // Personal Information
+            if (result.birth_info) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">👤 Personal Information</h4>
-                    <p><strong>Name:</strong> ${result.birth_info.name}<br>
-                    <strong>Birth Date:</strong> ${result.birth_info.date}<br>
-                    <strong>Birth Time:</strong> ${result.birth_info.time}<br>
-                    <strong>Birth Place:</strong> ${result.birth_info.place}<br>
-                    <strong>Age:</strong> ${result.birth_info.age} years</p>
-                    
+                    <p><strong>Name:</strong> ${safe(() => result.birth_info.name)}<br>
+                    <strong>Birth Date:</strong> ${safe(() => result.birth_info.date)}<br>
+                    <strong>Birth Time:</strong> ${safe(() => result.birth_info.time)}<br>
+                    <strong>Birth Place:</strong> ${safe(() => result.birth_info.place)}<br>
+                    <strong>Age:</strong> ${safe(() => result.birth_info.age)} years</p>
+                `;
+            }
+            
+            // Psychic Profile
+            if (result.psychic_profile) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">🎭 Psychic Profile</h4>
-                    <p><strong>Title:</strong> ${result.psychic_profile.title}<br>
-                    <strong>Description:</strong> ${result.psychic_profile.description}<br>
-                    <strong>Channel:</strong> ${result.psychic_profile.channel}<br>
-                    <strong>Superpower:</strong> ${result.psychic_profile.superpower}<br>
-                    <strong>Potency:</strong> ${result.psychic_profile.overall_potency}%</p>
-                    
+                    <p><strong>Title:</strong> ${safe(() => result.psychic_profile.title)}<br>
+                    <strong>Description:</strong> ${safe(() => result.psychic_profile.description)}<br>
+                    <strong>Channel:</strong> ${safe(() => result.psychic_profile.channel)}<br>
+                    <strong>Superpower:</strong> ${safe(() => result.psychic_profile.superpower)}<br>
+                    <strong>Potency:</strong> ${safe(() => result.psychic_profile.overall_potency)}%</p>
+                `;
+            }
+            
+            // Birth Chart Planets
+            if (result.birth_chart && result.birth_chart.planets && result.birth_chart.planets.length > 0) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">🌟 Birth Chart Planets</h4>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="background: #f0f0f0; font-weight: 600;">
@@ -560,26 +583,41 @@
                         </tr>
                         ${result.birth_chart.planets.map(p => `
                             <tr>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${p.planet}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${p.rasi}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${p.nakshatra}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${p.pada}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => p.planet)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => p.rasi)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => p.nakshatra)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => p.pada)}</td>
                             </tr>
                         `).join('')}
                     </table>
-                    
+                `;
+            }
+            
+            // Panchang
+            if (result.panchang) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">📅 Panchang</h4>
-                    <p><strong>Tithi:</strong> ${result.panchang.tithi.name} (${result.panchang.tithi.percentage.toFixed(1)}% complete)<br>
-                    <strong>Nakshatra:</strong> ${result.panchang.nakshatra.name} - Pada ${result.panchang.nakshatra.pada}<br>
-                    <strong>Yoga:</strong> ${result.panchang.yoga.name}<br>
-                    <strong>Weekday:</strong> ${result.panchang.weekday} (Ruled by ${result.panchang.weekday_planet})</p>
-                    
+                    <p><strong>Tithi:</strong> ${safe(() => result.panchang.tithi.name)} (${safe(() => result.panchang.tithi.percentage.toFixed(1))}% complete)<br>
+                    <strong>Nakshatra:</strong> ${safe(() => result.panchang.nakshatra.name)} - Pada ${safe(() => result.panchang.nakshatra.pada)}<br>
+                    <strong>Yoga:</strong> ${safe(() => result.panchang.yoga.name)}<br>
+                    <strong>Weekday:</strong> ${safe(() => result.panchang.weekday)} (Ruled by ${safe(() => result.panchang.weekday_planet)})</p>
+                `;
+            }
+            
+            // Current Dasa
+            if (result.dasa) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">⏰ Current Dasa Period</h4>
-                    <p><strong>Mahadasa:</strong> ${result.dasa.mahadasa.planet} (${result.dasa.mahadasa.duration_years} years)<br>
-                    <strong>Bhukti (Antardasa):</strong> ${result.dasa.bhukti.planet}<br>
-                    <strong>Life Stage:</strong> ${result.dasa.life_stage}<br>
-                    <strong>Note:</strong> ${result.dasa.prediction_note}</p>
-                    
+                    <p><strong>Mahadasa:</strong> ${safe(() => result.dasa.mahadasa.planet)} (${safe(() => result.dasa.mahadasa.duration_years)} years)<br>
+                    <strong>Bhukti (Antardasa):</strong> ${safe(() => result.dasa.bhukti.planet)}<br>
+                    <strong>Life Stage:</strong> ${safe(() => result.dasa.life_stage)}<br>
+                    <strong>Note:</strong> ${safe(() => result.dasa.prediction_note)}</p>
+                `;
+            }
+            
+            // Yogas
+            if (result.yogas && result.yogas.length > 0) {
+                html += `
                     <h4 style="color: #667eea; margin-top: 20px;">⭐ All Yogas (${result.yogas.length} total)</h4>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="background: #f0f0f0; font-weight: 600;">
@@ -590,22 +628,38 @@
                         </tr>
                         ${result.yogas.map(y => `
                             <tr style="${y.present ? 'background: #e8f5e9;' : ''}">
-                                <td style="padding: 8px; border: 1px solid #ddd;">${y.name}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => y.name)}</td>
                                 <td style="padding: 8px; border: 1px solid #ddd;">${y.present ? '✅ Active' : '❌ Inactive'}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${y.nature}</td>
-                                <td style="padding: 8px; border: 1px solid #ddd;">${y.strength || 0}%</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => y.nature)}</td>
+                                <td style="padding: 8px; border: 1px solid #ddd;">${safe(() => y.strength, 0)}%</td>
                             </tr>
                         `).join('')}
                     </table>
-                    
-                    <h4 style="color: #667eea; margin-top: 20px;">🔮 Prediction Framework</h4>
-                    <p><strong>Career:</strong> Significators - ${result.prediction_framework.life_area_predictions.career.significators.join(', ')}<br>
-                    <strong>Relationships:</strong> Significators - ${result.prediction_framework.life_area_predictions.relationships.significators.join(', ')}<br>
-                    <strong>Wealth:</strong> Significators - ${result.prediction_framework.life_area_predictions.wealth.significators.join(', ')}<br>
-                    <strong>Health:</strong> Significators - ${result.prediction_framework.life_area_predictions.health.significators.join(', ')}</p>
-                </div>
-            `;
+                `;
+            }
             
+            // Prediction Framework
+            if (result.prediction_framework && result.prediction_framework.life_area_predictions) {
+                html += `<h4 style="color: #667eea; margin-top: 20px;">🔮 Prediction Framework</h4><p>`;
+                
+                const areas = result.prediction_framework.life_area_predictions;
+                if (areas.career && areas.career.significators) {
+                    html += `<strong>Career:</strong> Significators - ${areas.career.significators.join(', ')}<br>`;
+                }
+                if (areas.relationships && areas.relationships.significators) {
+                    html += `<strong>Relationships:</strong> Significators - ${areas.relationships.significators.join(', ')}<br>`;
+                }
+                if (areas.wealth && areas.wealth.significators) {
+                    html += `<strong>Wealth:</strong> Significators - ${areas.wealth.significators.join(', ')}<br>`;
+                }
+                if (areas.health && areas.health.significators) {
+                    html += `<strong>Health:</strong> Significators - ${areas.health.significators.join(', ')}`;
+                }
+                
+                html += '</p>';
+            }
+            
+            html += '</div>';
             summary.innerHTML = html;
         }
     </script>
