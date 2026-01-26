@@ -360,8 +360,8 @@
             document.getElementById('life_stage').textContent = result.executive_summary.life_stage;
             
             // Birth Chart
-            document.getElementById('lagna').textContent = result.birth_chart.lagna.sign;
-            document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.degree ? result.birth_chart.lagna.degree.toFixed(2) : 'N/A';
+            document.getElementById('lagna').textContent = result.birth_chart.lagna.rasi;
+            document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.longitude ? result.birth_chart.lagna.longitude.toFixed(2) : 'N/A';
             
             const sunPlanet = result.birth_chart.planets.find(p => p.planet === 'Sun');
             const moonPlanet = result.birth_chart.planets.find(p => p.planet === 'Moon');
