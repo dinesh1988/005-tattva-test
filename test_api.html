@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tattva Astrology API Tester</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            display: none;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result {
+            margin-top: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            display: none;
+        }
+        
+        .result.active {
+            display: block;
+        }
+        
+        .result h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        
+        .result-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .result-section p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        
+        .yoga-list {
+            list-style: none;
+        }
+        
+        .yoga-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        
+        .yoga-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .error {
+            padding: 20px;
+            background: #fee;
+            border: 2px solid #fcc;
+            border-radius: 10px;
+            color: #c33;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error.active {
+            display: block;
+        }
+        
+        .example-data {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .example-data p {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        .example-btn {
+            display: inline-block;
+            padding: 5px 15px;
+            background: #667eea;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            font-size: 14px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌟 Tattva Astrology</h1>
+            <p>Complete Vedic Astrology Profile Generator</p>
+        </div>
+        
+        <div class="content">
+            <div class="example-data">
+                <strong>📝 Example Test Data:</strong>
+                <p>Name: John Doe | Date: 1990-05-15 | Time: 14:30 | Place: Mumbai</p>
+                <span class="example-btn" onclick="fillExample()">Use Example Data</span>
+            </div>
+            
+            <form id="birthForm">
+                <div class="form-group">
+                    <label for="name">👤 Full Name</label>
+                    <input type="text" id="name" placeholder="e.g., John Doe" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="birth_date">📅 Birth Date</label>
+                    <input type="date" id="birth_date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="birth_time">🕐 Birth Time (24-hour format)</label>
+                    <input type="time" id="birth_time" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="birth_place">📍 Birth Place</label>
+                    <input type="text" id="birth_place" placeholder="e.g., Mumbai, London, New York" required>
+                </div>
+                
+                <button type="submit" id="submitBtn">Generate Astrological Profile</button>
+            </form>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Calculating your cosmic blueprint...</p>
+            </div>
+            
+            <div class="error" id="error"></div>
+            
+            <div class="result" id="result">
+                <h2>Your Astrological Profile</h2>
+                
+                <div class="result-section">
+                    <h3>🎭 Executive Summary</h3>
+                    <p id="personality"></p>
+                    <p><strong>Active Yogas:</strong> <span id="yogas_count"></span></p>
+                    <p><strong>Current Dasa Planet:</strong> <span id="dasa_planet"></span></p>
+                    <p><strong>Life Stage:</strong> <span id="life_stage"></span></p>
+                </div>
+                
+                <div class="result-section">
+                    <h3>🌙 Birth Chart</h3>
+                    <p><strong>Lagna (Ascendant):</strong> <span id="lagna"></span></p>
+                    <p><strong>Sun Sign:</strong> <span id="sun_sign"></span></p>
+                    <p><strong>Moon Sign:</strong> <span id="moon_sign"></span></p>
+                </div>
+                
+                <div class="result-section">
+                    <h3>⭐ Active Yogas</h3>
+                    <ul class="yoga-list" id="yoga_list"></ul>
+                </div>
+                
+                <div class="result-section">
+                    <h3>🔢 Numerology</h3>
+                    <p id="numerology"></p>
+                </div>
+                
+                <div class="result-section">
+                    <h3>📊 Raw JSON Response</h3>
+                    <details>
+                        <summary style="cursor: pointer; color: #667eea; font-weight: 600;">View Full Response</summary>
+                        <pre id="raw_json" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; margin-top: 10px;"></pre>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'https://tattva-api-387275429365.us-central1.run.app/api/v1/profile/complete';
+        
+        function fillExample() {
+            document.getElementById('name').value = 'John Doe';
+            document.getElementById('birth_date').value = '1990-05-15';
+            document.getElementById('birth_time').value = '14:30';
+            document.getElementById('birth_place').value = 'Mumbai';
+        }
+        
+        document.getElementById('birthForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Hide previous results
+            document.getElementById('result').classList.remove('active');
+            document.getElementById('error').classList.remove('active');
+            
+            // Show loading
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('submitBtn').disabled = true;
+            
+            // Collect form data
+            const data = {
+                name: document.getElementById('name').value,
+                birth_date: document.getElementById('birth_date').value,
+                birth_time: document.getElementById('birth_time').value,
+                birth_place: document.getElementById('birth_place').value
+            };
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayResult(result);
+                } else {
+                    throw new Error(result.detail || 'API request failed');
+                }
+            } catch (error) {
+                displayError(error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+        
+        function displayResult(result) {
+            // Executive Summary
+            document.getElementById('personality').textContent = result.executive_summary.personality_overview;
+            document.getElementById('yogas_count').textContent = result.executive_summary.active_yogas_count;
+            document.getElementById('dasa_planet').textContent = result.executive_summary.current_dasa_planet;
+            document.getElementById('life_stage').textContent = result.executive_summary.life_stage;
+            
+            // Birth Chart
+            document.getElementById('lagna').textContent = result.birth_chart.lagna.sign;
+            const sunPlanet = result.birth_chart.planets.find(p => p.planet === 'Sun');
+            const moonPlanet = result.birth_chart.planets.find(p => p.planet === 'Moon');
+            document.getElementById('sun_sign').textContent = sunPlanet ? sunPlanet.rasi : 'N/A';
+            document.getElementById('moon_sign').textContent = moonPlanet ? moonPlanet.rasi : 'N/A';
+            
+            // Active Yogas
+            const activeYogas = result.yogas.filter(y => y.present);
+            const yogaList = document.getElementById('yoga_list');
+            yogaList.innerHTML = '';
+            
+            activeYogas.slice(0, 5).forEach(yoga => {
+                const li = document.createElement('li');
+                li.className = 'yoga-item';
+                li.innerHTML = `
+                    <span class="yoga-name">${yoga.name}</span> (${yoga.nature})
+                    <br><small>${yoga.description}</small>
+                `;
+                yogaList.appendChild(li);
+            });
+            
+            if (activeYogas.length === 0) {
+                yogaList.innerHTML = '<li class="yoga-item">No active yogas found</li>';
+            }
+            
+            // Numerology
+            if (result.numerology) {
+                document.getElementById('numerology').innerHTML = `
+                    <strong>Life Path Number:</strong> ${result.numerology.life_path_number}<br>
+                    <strong>Meaning:</strong> ${result.numerology.life_path_meaning}<br>
+                    <strong>Destiny Number:</strong> ${result.numerology.destiny_number || 'N/A'}
+                `;
+            }
+            
+            // Raw JSON
+            document.getElementById('raw_json').textContent = JSON.stringify(result, null, 2);
+            
+            // Show result
+            document.getElementById('result').classList.add('active');
+            document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function displayError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = `Error: ${message}`;
+            errorDiv.classList.add('active');
+        }
+    </script>
+</body>
+</html>
