@@ -395,10 +395,19 @@
             
             // Numerology
             if (result.numerology) {
+                const birthNum = result.numerology.birth_number || {};
+                const destinyNum = result.numerology.destiny_number || {};
+                const nameNum = result.numerology.name_number || {};
+                
                 document.getElementById('numerology').innerHTML = `
-                    <strong>Life Path Number:</strong> ${result.numerology.life_path_number}<br>
-                    <strong>Meaning:</strong> ${result.numerology.life_path_meaning}<br>
-                    <strong>Destiny Number:</strong> ${result.numerology.destiny_number || 'N/A'}
+                    <strong>Birth Number:</strong> ${birthNum.number || 'N/A'} (${birthNum.planet || 'N/A'})<br>
+                    <strong>Meaning:</strong> ${birthNum.meaning || 'N/A'}<br>
+                    <strong>Destiny Number:</strong> ${destinyNum.number || 'N/A'} (${destinyNum.planet || 'N/A'})<br>
+                    <strong>Meaning:</strong> ${destinyNum.meaning || 'N/A'}<br>
+                    <strong>Name Number:</strong> ${nameNum.number || 'N/A'} (Root: ${nameNum.root || 'N/A'}, Planet: ${nameNum.planet || 'N/A'})<br>
+                    ${result.numerology.lucky_numbers ? `<strong>Lucky Numbers:</strong> ${result.numerology.lucky_numbers.join(', ')}<br>` : ''}
+                    ${result.numerology.lucky_days ? `<strong>Lucky Days:</strong> ${result.numerology.lucky_days.join(', ')}<br>` : ''}
+                    ${result.numerology.lucky_colors ? `<strong>Lucky Colors:</strong> ${result.numerology.lucky_colors.join(', ')}` : ''}
                 `;
             }
             
