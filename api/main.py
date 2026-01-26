@@ -710,13 +710,23 @@ async def get_complete_profile(birth_data: BirthData):
     yogas = get_all_yogas(astro_time)
     yogas_enhanced = []
     for yoga in yogas:
-        yogas_enhanced.append({
-            **yoga,
-            'strength': 'Strong' if yoga.get('present', False) else 'Weak',
-            'life_impact': f"Affects {yoga.get('category', 'general')} aspects of life",
+        # Convert Yoga object to dict with enhancements
+        yoga_dict = {
+            'name': yoga.name,
+            'present': yoga.occurring,
+            'nature': yoga.nature.value if hasattr(yoga.nature, 'value') else str(yoga.nature),
+            'description': yoga.description,
+            'condition': yoga.condition,
+            'strength': yoga.strength if yoga.strength else 0,
+            'category': 'Wealth' if any(x in yoga.name for x in ['Lakshmi', 'Vasumathi', 'Chatussagara', 'Parvata']) else 
+                        'Raja' if 'Raja' in yoga.name else
+                        'Moon' if any(x in yoga.name for x in ['GajaKesari', 'Sunapha', 'Anapha', 'Dhurdhura']) else
+                        'Mahapurusha' if any(x in yoga.name for x in ['Bhadra', 'Hamsa', 'Malavya', 'Ruchaka', 'Sasha']) else 'Other',
+            'life_impact': f"Affects {yoga.nature.value if hasattr(yoga.nature, 'value') else 'general'} aspects of life",
             'timing': 'Active throughout life, especially during related dasa periods',
-            'prediction_value': 'High' if yoga.get('present', False) else 'Low'
-        })
+            'prediction_value': 'High' if yoga.occurring else 'Low'
+        }
+        yogas_enhanced.append(yoga_dict)
     
     # 6. NUMEROLOGY
     from logic.numerology import get_full_numerology
