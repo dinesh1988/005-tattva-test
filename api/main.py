@@ -519,6 +519,142 @@ async def check_compatibility(request: CompatibilityRequest):
     return CompatibilityResponse(**result)
 
 
+@app.post("/api/v1/profile/complete", tags=["Complete Profile"])
+async def get_complete_profile(birth_data: BirthData):
+    """
+    Get complete astrological profile in one request.
+    
+    **Returns everything you need:**
+    - ✅ Psychic Profile (Channel, Superpower, Signal Strength)
+    - ✅ Birth Chart (Planetary positions, Lagna, houses)
+    - ✅ Panchang (Tithi, Nakshatra, Yoga, Karana)
+    - ✅ Dasa Periods (Current Mahadasa, Antardasa, Pratyantara)
+    - ✅ Yogas (All 21 yoga combinations)
+    - ✅ Numerology (Life Path, Expression, Soul numbers)
+    
+    **One request, complete profile!**
+    """
+    import pytz
+    from logic.yogas import get_all_yogas
+    
+    # Get location coordinates
+    if birth_data.latitude and birth_data.longitude:
+        lat = birth_data.latitude
+        lon = birth_data.longitude
+        tz_name = birth_data.timezone or "UTC"
+        place_name = birth_data.birth_place
+    else:
+        location = get_location(birth_data.birth_place)
+        if not location:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not find location '{birth_data.birth_place}'"
+            )
+        lat = location['latitude']
+        lon = location['longitude']
+        tz_name = birth_data.timezone or location['timezone']
+        place_name = location['name']
+    
+    # Parse birth datetime
+    try:
+        tz = pytz.timezone(tz_name)
+        date_parts = birth_data.birth_date.split('-')
+        time_parts = birth_data.birth_time.split(':')
+        
+        year = int(date_parts[0])
+        month = int(date_parts[1])
+        day = int(date_parts[2])
+        hour = int(time_parts[0])
+        minute = int(time_parts[1])
+        
+        birth_datetime = datetime(year, month, day, hour, minute)
+        birth_datetime_tz = tz.localize(birth_datetime)
+        astro_time = AstroTime(birth_datetime_tz, lat, lon)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    
+    # 1. PSYCHIC PROFILE
+    psychic_profile = get_psychic_profile(astro_time)
+    
+    # 2. BIRTH CHART - Planetary Positions
+    planets_data = []
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, 
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
+        longitude = get_planet_longitude(planet, astro_time)
+        rasi_num = int(longitude / 30) + 1
+        rasi_name = RASIS[rasi_num - 1]
+        nakshatra = get_nakshatra(longitude)
+        
+        planets_data.append({
+            'planet': planet.name,
+            'longitude': round(longitude, 2),
+            'rasi': rasi_name,
+            'rasi_num': rasi_num,
+            'nakshatra': nakshatra['name'],
+            'pada': nakshatra['pada']
+        })
+    
+    lagna_long = get_lagnam(astro_time)
+    lagna_rasi_num = int(lagna_long / 30) + 1
+    lagna_data = {
+        'longitude': round(lagna_long, 2),
+        'rasi': RASIS[lagna_rasi_num - 1],
+        'rasi_num': lagna_rasi_num
+    }
+    
+    # 3. PANCHANG
+    tithi_data = get_tithi(astro_time)
+    nakshatra_data = get_nakshatra(get_planet_longitude(Planet.Moon, astro_time))
+    yoga_data = get_yoga(astro_time)
+    
+    panchang = {
+        'tithi': tithi_data,
+        'nakshatra': nakshatra_data,
+        'yoga': yoga_data,
+        'weekday': birth_datetime.strftime('%A')
+    }
+    
+    # 4. DASA PERIODS
+    dasa_data = get_vimshottari_dasa(astro_time)
+    
+    # 5. YOGAS - All 21 combinations
+    yogas = get_all_yogas(astro_time)
+    
+    # 6. NUMEROLOGY
+    from logic.numerology import get_full_numerology
+    numerology = get_full_numerology(birth_data.name, birth_datetime)
+    
+    # Compile complete profile
+    return {
+        'name': birth_data.name,
+        'birth_data': {
+            'date': birth_data.birth_date,
+            'time': birth_data.birth_time,
+            'place': place_name,
+            'latitude': lat,
+            'longitude': lon,
+            'timezone': tz_name
+        },
+        'psychic_profile': {
+            'title': psychic_profile['title'],
+            'description': psychic_profile['description'],
+            'channel': psychic_profile['channel'],
+            'superpower': psychic_profile['superpower'],
+            'signal_strength': psychic_profile['signal_strength'],
+            'overall_potency': psychic_profile['overall_potency']
+        },
+        'birth_chart': {
+            'lagna': lagna_data,
+            'planets': planets_data
+        },
+        'panchang': panchang,
+        'dasa': dasa_data,
+        'yogas': yogas,
+        'numerology': numerology,
+        'generated_at': datetime.now().isoformat()
+    }
+
+
 @app.get("/api/v1/channels", tags=["Reference Data"])
 async def get_all_channels():
     """
