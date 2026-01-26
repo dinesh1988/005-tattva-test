@@ -21,11 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Create ephemeris data directory
 RUN mkdir -p /app/ephe
 
-# Download Swiss Ephemeris files
-RUN cd /app/ephe && \
-    wget -q https://www.astro.com/ftp/swisseph/ephe/sepl_18.se1 && \
-    wget -q https://www.astro.com/ftp/swisseph/ephe/semo_18.se1 && \
-    wget -q https://www.astro.com/ftp/swisseph/ephe/seas_18.se1
+# Copy Swiss Ephemeris file (de421.bsp for planetary positions)
+COPY de421.bsp /app/ephe/de421.bsp
 
 # Copy application code
 COPY . .
