@@ -764,17 +764,17 @@ async def get_complete_profile(birth_data: BirthData):
             'career': {
                 'significators': ['Sun', 'Saturn', '10th house'],
                 'relevant_planets': [p for p in planets_data if p['planet'] in ['Sun', 'Saturn']],
-                'relevant_yogas': [y for y in yogas_enhanced if 'Raja' in y.get('name', '') or 'Career' in y.get('category', '')]
+                'relevant_yogas': [y for y in yogas_enhanced if y.get('category') == 'Raja'][:5]
             },
             'relationships': {
                 'significators': ['Venus', 'Moon', '7th house'],
                 'relevant_planets': [p for p in planets_data if p['planet'] in ['Venus', 'Moon']],
-                'relevant_yogas': [y for y in yogas_enhanced if 'Marriage' in y.get('name', '')]
+                'relevant_yogas': []  # Add relationship-specific yogas later
             },
             'wealth': {
                 'significators': ['Jupiter', 'Venus', '2nd house', '11th house'],
                 'relevant_planets': [p for p in planets_data if p['planet'] in ['Jupiter', 'Venus']],
-                'relevant_yogas': [y for y in yogas_enhanced if 'Dhana' in y.get('name', '') or 'Wealth' in y.get('category', '')]
+                'relevant_yogas': [y for y in yogas_enhanced if y.get('category') == 'Wealth'][:5]
             },
             'health': {
                 'significators': ['Sun', 'Moon', '6th house', 'Lagna'],
@@ -784,7 +784,10 @@ async def get_complete_profile(birth_data: BirthData):
             'spirituality': {
                 'significators': ['Jupiter', 'Ketu', '9th house', '12th house'],
                 'relevant_planets': [p for p in planets_data if p['planet'] in ['Jupiter', 'Ketu']],
-                'psychic_profile': psychic_profile
+                'psychic_profile': {
+                    'title': psychic_profile.get('title', ''),
+                    'description': psychic_profile.get('description', '')
+                }
             }
         },
         'timing_triggers': {
