@@ -522,20 +522,57 @@ async def check_compatibility(request: CompatibilityRequest):
 @app.post("/api/v1/profile/complete", tags=["Complete Profile"])
 async def get_complete_profile(birth_data: BirthData):
     """
-    Get complete astrological profile in one request.
+    Get complete astrological profile optimized for LLM prediction engines.
     
-    **Returns everything you need:**
-    - ✅ Psychic Profile (Channel, Superpower, Signal Strength)
-    - ✅ Birth Chart (Planetary positions, Lagna, houses)
-    - ✅ Panchang (Tithi, Nakshatra, Yoga, Karana)
-    - ✅ Dasa Periods (Current Mahadasa, Antardasa, Pratyantara)
-    - ✅ Yogas (All 21 yoga combinations)
-    - ✅ Numerology (Life Path, Expression, Soul numbers)
+    **LLM-Friendly Format:**
+    - ✅ Executive summary in plain English
+    - ✅ Interpretive descriptions for all data points
+    - ✅ Natural language explanations
+    - ✅ Prediction-ready insights with life area mappings
+    - ✅ Timing indicators and triggers
+    - ✅ Strength/weakness analysis
+    - ✅ Combination effects and synergies
     
-    **One request, complete profile!**
+    **Perfect for AI/algorithmic prediction systems!**
     """
     import pytz
     from logic.yogas import get_all_yogas
+    from logic.lordship import get_house_lord
+    
+    # Helper function for rasi interpretations
+    def get_rasi_interpretation(rasi_name, planet_name=None):
+        interpretations = {
+            'Aries': {'element': 'Fire', 'quality': 'Cardinal', 'traits': ['Bold', 'Pioneering', 'Energetic', 'Impulsive'], 'areas': ['Leadership', 'Initiative', 'Action']},
+            'Taurus': {'element': 'Earth', 'quality': 'Fixed', 'traits': ['Stable', 'Practical', 'Sensual', 'Stubborn'], 'areas': ['Finance', 'Resources', 'Comfort']},
+            'Gemini': {'element': 'Air', 'quality': 'Mutable', 'traits': ['Curious', 'Communicative', 'Versatile', 'Scattered'], 'areas': ['Communication', 'Learning', 'Siblings']},
+            'Cancer': {'element': 'Water', 'quality': 'Cardinal', 'traits': ['Emotional', 'Nurturing', 'Protective', 'Moody'], 'areas': ['Home', 'Family', 'Emotions']},
+            'Leo': {'element': 'Fire', 'quality': 'Fixed', 'traits': ['Confident', 'Creative', 'Generous', 'Proud'], 'areas': ['Creativity', 'Romance', 'Self-expression']},
+            'Virgo': {'element': 'Earth', 'quality': 'Mutable', 'traits': ['Analytical', 'Perfectionist', 'Service-oriented', 'Critical'], 'areas': ['Health', 'Work', 'Details']},
+            'Libra': {'element': 'Air', 'quality': 'Cardinal', 'traits': ['Diplomatic', 'Harmonious', 'Indecisive', 'Social'], 'areas': ['Relationships', 'Partnership', 'Balance']},
+            'Scorpio': {'element': 'Water', 'quality': 'Fixed', 'traits': ['Intense', 'Transformative', 'Secretive', 'Powerful'], 'areas': ['Transformation', 'Intimacy', 'Occult']},
+            'Sagittarius': {'element': 'Fire', 'quality': 'Mutable', 'traits': ['Optimistic', 'Philosophical', 'Adventurous', 'Blunt'], 'areas': ['Higher learning', 'Travel', 'Wisdom']},
+            'Capricorn': {'element': 'Earth', 'quality': 'Cardinal', 'traits': ['Ambitious', 'Disciplined', 'Reserved', 'Practical'], 'areas': ['Career', 'Authority', 'Structure']},
+            'Aquarius': {'element': 'Air', 'quality': 'Fixed', 'traits': ['Innovative', 'Humanitarian', 'Detached', 'Rebellious'], 'areas': ['Innovation', 'Community', 'Ideals']},
+            'Pisces': {'element': 'Water', 'quality': 'Mutable', 'traits': ['Compassionate', 'Intuitive', 'Escapist', 'Artistic'], 'areas': ['Spirituality', 'Creativity', 'Service']}
+        }
+        return interpretations.get(rasi_name, {})
+    
+    # Helper for planet meanings
+    def get_planet_interpretation(planet_name, rasi_name):
+        planet_meanings = {
+            'Sun': {'signifies': 'Soul, ego, vitality, father, authority', 'life_areas': ['Career', 'Recognition', 'Health', 'Leadership']},
+            'Moon': {'signifies': 'Mind, emotions, mother, nurturing', 'life_areas': ['Emotions', 'Mental state', 'Home', 'Public']},
+            'Mars': {'signifies': 'Energy, courage, siblings, property', 'life_areas': ['Action', 'Conflict', 'Sports', 'Real estate']},
+            'Mercury': {'signifies': 'Intelligence, communication, business', 'life_areas': ['Learning', 'Business', 'Writing', 'Trade']},
+            'Jupiter': {'signifies': 'Wisdom, expansion, teacher, fortune', 'life_areas': ['Higher education', 'Philosophy', 'Children', 'Wealth']},
+            'Venus': {'signifies': 'Love, beauty, luxury, relationships', 'life_areas': ['Romance', 'Arts', 'Comfort', 'Marriage']},
+            'Saturn': {'signifies': 'Discipline, karma, delays, longevity', 'life_areas': ['Career', 'Responsibility', 'Obstacles', 'Longevity']},
+            'Rahu': {'signifies': 'Obsession, foreign, innovation, material desires', 'life_areas': ['Ambition', 'Technology', 'Foreign lands', 'Unconventional']},
+            'Ketu': {'signifies': 'Spirituality, detachment, past life, moksha', 'life_areas': ['Spirituality', 'Liberation', 'Losses', 'Enlightenment']}
+        }
+        base = planet_meanings.get(planet_name, {})
+        rasi_info = get_rasi_interpretation(rasi_name)
+        return {**base, 'placement_effect': f"{planet_name} in {rasi_name} blends {base.get('signifies', '')} with {rasi_info.get('element', '')} element energy"}
     
     # Get location coordinates
     if birth_data.latitude and birth_data.longitude:
@@ -576,8 +613,11 @@ async def get_complete_profile(birth_data: BirthData):
     # 1. PSYCHIC PROFILE
     psychic_profile = get_psychic_profile(astro_time)
     
-    # 2. BIRTH CHART - Planetary Positions
+    # 2. BIRTH CHART - Enhanced with interpretations
     planets_data = []
+    moon_sign = None
+    sun_sign = None
+    
     for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, 
                    Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
         longitude = get_planet_longitude(planet, astro_time)
@@ -585,46 +625,168 @@ async def get_complete_profile(birth_data: BirthData):
         rasi_name = RASIS[rasi_num - 1]
         nakshatra = get_nakshatra(longitude)
         
+        if planet == Planet.Moon:
+            moon_sign = rasi_name
+        if planet == Planet.Sun:
+            sun_sign = rasi_name
+        
+        planet_interp = get_planet_interpretation(planet.name, rasi_name)
+        rasi_interp = get_rasi_interpretation(rasi_name)
+        
         planets_data.append({
             'planet': planet.name,
             'longitude': round(longitude, 2),
             'rasi': rasi_name,
             'rasi_num': rasi_num,
             'nakshatra': nakshatra['name'],
-            'pada': nakshatra['pada']
+            'pada': nakshatra['pada'],
+            'interpretation': {
+                'signifies': planet_interp.get('signifies', ''),
+                'life_areas': planet_interp.get('life_areas', []),
+                'placement': planet_interp.get('placement_effect', ''),
+                'element': rasi_interp.get('element', ''),
+                'traits': rasi_interp.get('traits', [])
+            }
         })
     
+    # Lagna with interpretation
     lagna_long = get_lagnam(astro_time)
     lagna_rasi_num = int(lagna_long / 30) + 1
+    lagna_rasi = RASIS[lagna_rasi_num - 1]
+    lagna_interp = get_rasi_interpretation(lagna_rasi)
+    
     lagna_data = {
         'longitude': round(lagna_long, 2),
-        'rasi': RASIS[lagna_rasi_num - 1],
-        'rasi_num': lagna_rasi_num
+        'rasi': lagna_rasi,
+        'rasi_num': lagna_rasi_num,
+        'interpretation': {
+            'description': f"{lagna_rasi} rising indicates a personality that is {', '.join(lagna_interp.get('traits', [])[:3])}.",
+            'element': lagna_interp.get('element', ''),
+            'quality': lagna_interp.get('quality', ''),
+            'life_focus': lagna_interp.get('areas', []),
+            'traits': lagna_interp.get('traits', []),
+            'ruling_planet': get_house_lord(lagna_rasi_num, astro_time).name
+        }
     }
     
-    # 3. PANCHANG
+    # 3. PANCHANG with interpretations
     tithi_data = get_tithi(astro_time)
     nakshatra_data = get_nakshatra(get_planet_longitude(Planet.Moon, astro_time))
     yoga_data = get_yoga(astro_time)
     
     panchang = {
-        'tithi': tithi_data,
-        'nakshatra': nakshatra_data,
-        'yoga': yoga_data,
-        'weekday': birth_datetime.strftime('%A')
+        'tithi': {
+            **tithi_data,
+            'interpretation': f"Tithi indicates lunar phase energy affecting emotional and mental states."
+        },
+        'nakshatra': {
+            **nakshatra_data,
+            'interpretation': f"Birth nakshatra determines core personality traits, life path, and karmic tendencies."
+        },
+        'yoga': {
+            **yoga_data,
+            'interpretation': "Daily yoga indicates auspicious combinations affecting success and fortune."
+        },
+        'weekday': birth_datetime.strftime('%A'),
+        'weekday_planet': {'Monday': 'Moon', 'Tuesday': 'Mars', 'Wednesday': 'Mercury', 
+                           'Thursday': 'Jupiter', 'Friday': 'Venus', 'Saturday': 'Saturn', 
+                           'Sunday': 'Sun'}[birth_datetime.strftime('%A')]
     }
     
-    # 4. DASA PERIODS
+    # 4. DASA PERIODS with timing
     dasa_data = get_vimshottari_dasa(astro_time)
+    current_year = datetime.now().year
+    birth_year = birth_datetime.year
+    age = current_year - birth_year
     
-    # 5. YOGAS - All 21 combinations
+    dasa_interpretation = {
+        **dasa_data,
+        'current_age': age,
+        'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
+        'prediction_note': f"Currently in {dasa_data.get('mahadasa', {}).get('planet', 'Unknown')} Mahadasa - this planet's significations are dominant in life now."
+    }
+    
+    # 5. YOGAS with detailed interpretations
     yogas = get_all_yogas(astro_time)
+    yogas_enhanced = []
+    for yoga in yogas:
+        yogas_enhanced.append({
+            **yoga,
+            'strength': 'Strong' if yoga.get('present', False) else 'Weak',
+            'life_impact': f"Affects {yoga.get('category', 'general')} aspects of life",
+            'timing': 'Active throughout life, especially during related dasa periods',
+            'prediction_value': 'High' if yoga.get('present', False) else 'Low'
+        })
     
     # 6. NUMEROLOGY
     from logic.numerology import get_full_numerology
     numerology = get_full_numerology(birth_data.name, birth_datetime)
     
-    # Compile complete profile
+    # 7. EXECUTIVE SUMMARY for LLMs
+    active_yogas = [y['name'] for y in yogas_enhanced if y.get('present', False)]
+    
+    executive_summary = {
+        'personality_overview': f"{birth_data.name} is a {lagna_rasi} rising individual with {sun_sign} Sun and {moon_sign} Moon. Their personality blends {lagna_interp.get('element', '')} element qualities with {', '.join(lagna_interp.get('traits', [])[:2])} traits.",
+        'core_strengths': lagna_interp.get('traits', [])[:3],
+        'life_path_focus': lagna_interp.get('areas', []),
+        'psychic_archetype': psychic_profile['title'],
+        'active_yogas_count': len(active_yogas),
+        'dominant_yogas': active_yogas[:5],
+        'current_dasa_planet': dasa_data.get('mahadasa', {}).get('planet', 'Unknown'),
+        'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
+        'numerology_summary': f"Life Path {numerology.get('life_path_number', 0)} indicates {numerology.get('life_path_meaning', '')}",
+        'prediction_readiness': {
+            'data_quality': 'Complete',
+            'prediction_confidence': 'High',
+            'key_factors': ['Yogas', 'Dasa', 'Lagna', 'Nakshatra'],
+            'timing_available': True
+        }
+    }
+    
+    # 8. PREDICTION FRAMEWORK for AI
+    prediction_framework = {
+        'immediate_influences': {
+            'current_dasa': dasa_data.get('mahadasa', {}),
+            'current_antardasa': dasa_data.get('antardasa', {}),
+            'active_yogas': active_yogas[:3]
+        },
+        'life_area_predictions': {
+            'career': {
+                'significators': ['Sun', 'Saturn', '10th house'],
+                'relevant_planets': [p for p in planets_data if p['planet'] in ['Sun', 'Saturn']],
+                'relevant_yogas': [y for y in yogas_enhanced if 'Raja' in y.get('name', '') or 'Career' in y.get('category', '')]
+            },
+            'relationships': {
+                'significators': ['Venus', 'Moon', '7th house'],
+                'relevant_planets': [p for p in planets_data if p['planet'] in ['Venus', 'Moon']],
+                'relevant_yogas': [y for y in yogas_enhanced if 'Marriage' in y.get('name', '')]
+            },
+            'wealth': {
+                'significators': ['Jupiter', 'Venus', '2nd house', '11th house'],
+                'relevant_planets': [p for p in planets_data if p['planet'] in ['Jupiter', 'Venus']],
+                'relevant_yogas': [y for y in yogas_enhanced if 'Dhana' in y.get('name', '') or 'Wealth' in y.get('category', '')]
+            },
+            'health': {
+                'significators': ['Sun', 'Moon', '6th house', 'Lagna'],
+                'relevant_planets': [p for p in planets_data if p['planet'] in ['Sun', 'Moon']],
+                'lagna_strength': lagna_data
+            },
+            'spirituality': {
+                'significators': ['Jupiter', 'Ketu', '9th house', '12th house'],
+                'relevant_planets': [p for p in planets_data if p['planet'] in ['Jupiter', 'Ketu']],
+                'psychic_profile': psychic_profile
+            }
+        },
+        'timing_triggers': {
+            'current_year': current_year,
+            'age': age,
+            'dasa_end_year': dasa_data.get('mahadasa', {}).get('end_date', 'Unknown'),
+            'critical_ages': [21, 28, 35, 42, 49, 56, 63],  # Saturn returns and other milestones
+            'next_milestone': next((a for a in [21, 28, 35, 42, 49, 56, 63] if a > age), None)
+        }
+    }
+    
+    # Compile complete LLM-optimized profile
     return {
         'name': birth_data.name,
         'birth_data': {
@@ -633,25 +795,40 @@ async def get_complete_profile(birth_data: BirthData):
             'place': place_name,
             'latitude': lat,
             'longitude': lon,
-            'timezone': tz_name
+            'timezone': tz_name,
+            'age': age
         },
+        'executive_summary': executive_summary,
         'psychic_profile': {
             'title': psychic_profile['title'],
             'description': psychic_profile['description'],
             'channel': psychic_profile['channel'],
             'superpower': psychic_profile['superpower'],
             'signal_strength': psychic_profile['signal_strength'],
-            'overall_potency': psychic_profile['overall_potency']
+            'overall_potency': psychic_profile['overall_potency'],
+            'how_it_works': psychic_profile.get('how_it_works', ''),
+            'best_use': psychic_profile.get('best_use', ''),
+            'activation_trigger': psychic_profile.get('activation_trigger', '')
         },
         'birth_chart': {
             'lagna': lagna_data,
+            'sun_sign': sun_sign,
+            'moon_sign': moon_sign,
             'planets': planets_data
         },
         'panchang': panchang,
-        'dasa': dasa_data,
-        'yogas': yogas,
+        'dasa': dasa_interpretation,
+        'yogas': yogas_enhanced,
         'numerology': numerology,
-        'generated_at': datetime.now().isoformat()
+        'prediction_framework': prediction_framework,
+        'generated_at': datetime.now().isoformat(),
+        'llm_instructions': {
+            'usage': 'This profile is optimized for LLM prediction engines',
+            'prediction_approach': 'Combine yogas, dasa periods, and planetary positions for life area predictions',
+            'timing_method': 'Use current_dasa and timing_triggers for temporal predictions',
+            'strength_assessment': 'Evaluate active_yogas_count and planetary strengths',
+            'life_areas': ['career', 'relationships', 'wealth', 'health', 'spirituality']
+        }
     }
 
 
