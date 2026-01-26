@@ -1,7 +1,8 @@
 """
-VedAstroPy API - Psychic Profile Service
-=========================================
-FastAPI service for generating and storing Psychic Profiles.
+Tattva API - Vedic Astrology Service
+=====================================
+FastAPI service for Vedic Astrology calculations including birth charts,
+yogas, panchang, dasa periods, and psychic profiles.
 
 Run with: uvicorn api.main:app --reload --port 8000
 """
@@ -54,17 +55,24 @@ from api.database import (
 # =============================================================================
 
 app = FastAPI(
-    title="VedAstroPy Psychic Profile API",
+    title="Tattva - Vedic Astrology API",
     description="""
-    Generate unique Psychic Profiles based on Vedic Astrology formulas.
+    Comprehensive Vedic Astrology API providing birth chart calculations, 
+    yoga predictions, panchang, dasa periods, divisional charts, numerology,
+    and psychic profile analysis.
     
-    ## The 3-Step Formula
+    ## Key Features
     
-    1. **Channel** (Moon Element) → How they receive psychic information
-    2. **Superpower** (Nakshatra) → What specific ability they have  
-    3. **Signal Strength** (Ketu House) → Intensity and activation conditions
+    - **Birth Charts**: Planetary positions, Lagna, house placements
+    - **Yogas**: 21+ yoga combinations including Raj, Dhana, and Pancha Mahapurusha yogas
+    - **Panchang**: Tithi, Nakshatra, Yoga, Karana calculations
+    - **Dasa Periods**: Vimshottari Dasa system with sub-periods
+    - **Divisional Charts**: D1 through D60 varga calculations
+    - **Numerology**: Pythagorean and Chaldean systems
+    - **Psychic Profiles**: 1,296 unique combinations based on Moon, Nakshatra, and Ketu
+    - **Daily Predictions**: Transit-based mood, energy, and luck forecasts
     
-    Creates 1,296 unique profile combinations (4 × 27 × 12)
+    Built with Swiss Ephemeris for precise astronomical calculations.
     """,
     version="1.0.0",
     docs_url="/docs",
@@ -228,7 +236,7 @@ async def health_check():
         status_code=200,
         content={
             "status": "healthy",
-            "service": "VedAstroPy API",
+            "service": "Tattva API",
             "version": "0.6.0",
             "yogas": 21,
             "modules": 18
@@ -239,7 +247,7 @@ async def health_check():
 async def root():
     """Root endpoint with API info."""
     return {
-        "service": "VedAstroPy Psychic Profile API",
+        "service": "Tattva Vedic Astrology API",
         "status": "running",
         "version": "0.6.0",
         "total_combinations": 1296,
