@@ -539,6 +539,7 @@ async def get_complete_profile(birth_data: BirthData):
     from logic.yogas import get_all_yogas
     from logic.lordship import get_lord_of_house
     from logic.psychic_profile import get_house_from_longitude
+    from logic.varga import get_d9_navamsa, get_d10_dasamsa
     
     # Helper function for rasi interpretations
     def get_rasi_interpretation(rasi_name, planet_name=None):
@@ -634,6 +635,10 @@ async def get_complete_profile(birth_data: BirthData):
         # Calculate house position
         house = get_house_from_longitude(longitude, lagna_long)
         
+        # Calculate divisional charts
+        d9_sign, d9_num = get_d9_navamsa(longitude)
+        d10_sign, d10_num = get_d10_dasamsa(longitude)
+        
         if planet == Planet.Moon:
             moon_sign = rasi_name
         if planet == Planet.Sun:
@@ -651,6 +656,10 @@ async def get_complete_profile(birth_data: BirthData):
             'rasi': rasi_name,
             'rasi_num': rasi_num,
             'house': house,
+            'd9_navamsa': d9_sign,
+            'd9_num': d9_num,
+            'd10_dasamsa': d10_sign,
+            'd10_num': d10_num,
             'nakshatra': nakshatra_name,
             'pada': nakshatra_pada,
             'interpretation': {

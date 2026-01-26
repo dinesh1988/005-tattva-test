@@ -289,8 +289,32 @@
                 </div>
                 
                 <div class="result-section">
-                    <h3>🏠 D1 Chart - Houses & Planets</h3>
-                    <div id="house_chart" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px;"></div>
+                    <h3>📊 Divisional Charts</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #667eea;">
+                        <button onclick="showChart('d1')" id="btn-d1" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
+                            D1 - Rasi (Birth Chart)
+                        </button>
+                        <button onclick="showChart('d9')" id="btn-d9" style="padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
+                            D9 - Navamsa (Marriage)
+                        </button>
+                        <button onclick="showChart('d10')" id="btn-d10" style="padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
+                            D10 - Dasamsa (Career)
+                        </button>
+                    </div>
+                    <div id="d1_chart" style="display: block;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🏠 D1 - Houses & Planets</h4>
+                        <div id="house_chart_d1" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d9_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">💑 D9 Navamsa - Marriage & Spouse</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">The Navamsa chart shows marriage, spouse qualities, and spiritual dharma.</p>
+                        <div id="house_chart_d9" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d10_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">💼 D10 Dasamsa - Career & Profession</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">The Dasamsa chart reveals career path, professional success, and achievements.</p>
+                        <div id="house_chart_d10" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
                 </div>
                 
                 <div class="result-section">
@@ -504,8 +528,10 @@
             document.getElementById('moon_nakshatra_detail').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
             document.getElementById('moon_pada').textContent = moonPlanet ? moonPlanet.pada : 'N/A';
             
-            // D1 House Chart
-            displayHouseChart(result.birth_chart);
+            // Display all divisional charts
+            displayHouseChart(result.birth_chart, 'd1');
+            displayHouseChart(result.birth_chart, 'd9');
+            displayHouseChart(result.birth_chart, 'd10');
             
             // Active Yogas
             const activeYogas = result.yogas.filter(y => y.present);
@@ -561,8 +587,31 @@
             errorDiv.classList.add('active');
         }
         
-        function displayHouseChart(birthChart) {
-            const houseChart = document.getElementById('house_chart');
+        function showChart(chartType) {
+            // Hide all charts
+            document.getElementById('d1_chart').style.display = 'none';
+            document.getElementById('d9_chart').style.display = 'none';
+            document.getElementById('d10_chart').style.display = 'none';
+            
+            // Reset all buttons
+            document.getElementById('btn-d1').style.background = '#f0f0f0';
+            document.getElementById('btn-d1').style.color = '#333';
+            document.getElementById('btn-d9').style.background = '#f0f0f0';
+            document.getElementById('btn-d9').style.color = '#333';
+            document.getElementById('btn-d10').style.background = '#f0f0f0';
+            document.getElementById('btn-d10').style.color = '#333';
+            
+            // Show selected chart and highlight button
+            document.getElementById(chartType + '_chart').style.display = 'block';
+            document.getElementById('btn-' + chartType).style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            document.getElementById('btn-' + chartType).style.color = 'white';
+        }
+        
+        function displayHouseChart(birthChart, chartType = 'd1') {
+            const chartId = 'house_chart_' + chartType;
+            const houseChart = document.getElementById(chartId);
+            if (!houseChart) return;
+            
             houseChart.innerHTML = '';
             
             // House meanings for tooltips
@@ -590,18 +639,50 @@
                 };
             }
             
-            // Add Lagna to house 1
-            houseData[1].sign = birthChart.lagna.rasi;
+            // Determine which field to use based on chart type
+            let signField, houseField;
+            if (chartType === 'd9') {
+                signField = 'd9_navamsa';
+                // For divisional charts, we calculate house from sign position
+                // Lagna in D9 = house 1 in D9, but we show signs not houses
+            } else if (chartType === 'd10') {
+                signField = 'd10_dasamsa';
+            } else {
+                signField = 'rasi';
+                houseField = 'house';
+            }
             
-            // Add planets to their houses
-            birthChart.planets.forEach(planet => {
-                if (planet.house) {
-                    houseData[planet.house].planets.push(planet.planet);
-                    if (!houseData[planet.house].sign) {
-                        houseData[planet.house].sign = planet.rasi;
+            // For D1, use houses. For D9/D10, show signs 1-12
+            if (chartType === 'd1') {
+                // Add Lagna to house 1
+                houseData[1].sign = birthChart.lagna.rasi;
+                
+                // Add planets to their houses
+                birthChart.planets.forEach(planet => {
+                    if (planet.house) {
+                        houseData[planet.house].planets.push(planet.planet);
+                        if (!houseData[planet.house].sign) {
+                            houseData[planet.house].sign = planet.rasi;
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                // For D9/D10, group by signs (treat signs as houses)
+                const signToNum = {
+                    'Aries': 1, 'Taurus': 2, 'Gemini': 3, 'Cancer': 4,
+                    'Leo': 5, 'Virgo': 6, 'Libra': 7, 'Scorpio': 8,
+                    'Sagittarius': 9, 'Capricorn': 10, 'Aquarius': 11, 'Pisces': 12
+                };
+                
+                birthChart.planets.forEach(planet => {
+                    const sign = planet[signField];
+                    const signNum = signToNum[sign];
+                    if (signNum) {
+                        houseData[signNum].planets.push(planet.planet);
+                        houseData[signNum].sign = sign;
+                    }
+                });
+            }
             
             // Create house boxes
             for (let house = 1; house <= 12; house++) {
@@ -610,7 +691,7 @@
                     border: 2px solid #667eea;
                     border-radius: 8px;
                     padding: 12px;
-                    background: ${house === 1 ? 'linear-gradient(135deg, #667eea22 0%, #764ba222 100%)' : '#f9f9f9'};
+                    background: ${house === 1 && chartType === 'd1' ? 'linear-gradient(135deg, #667eea22 0%, #764ba222 100%)' : '#f9f9f9'};
                     min-height: 100px;
                     position: relative;
                     transition: transform 0.2s, box-shadow 0.2s;
@@ -630,14 +711,14 @@
                 
                 let houseHTML = `
                     <div style="font-weight: 700; color: #667eea; margin-bottom: 5px; font-size: 14px;">
-                        House ${house}
+                        ${chartType === 'd1' ? 'House ' + house : houseData[house].sign || 'Sign ' + house}
                     </div>
                     <div style="font-size: 11px; color: #666; margin-bottom: 8px;">
-                        ${houseMeanings[house]}
+                        ${chartType === 'd1' ? houseMeanings[house] : ''}
                     </div>
                 `;
                 
-                if (houseData[house].sign) {
+                if (houseData[house].sign && chartType === 'd1') {
                     houseHTML += `
                         <div style="font-size: 12px; font-weight: 600; color: #333; margin-bottom: 5px;">
                             Sign: ${houseData[house].sign}
@@ -645,7 +726,7 @@
                     `;
                 }
                 
-                if (house === 1) {
+                if (house === 1 && chartType === 'd1') {
                     houseHTML += `<div style="color: #e91e63; font-weight: 600; font-size: 12px; margin-bottom: 3px;">↑ Lagna</div>`;
                 }
                 
