@@ -307,6 +307,9 @@
                     <h3>💻 Raw JSON Response</h3>
                     <details>
                         <summary style="cursor: pointer; color: #667eea; font-weight: 600;">View Full Response</summary>
+                        <button onclick="copyJsonToClipboard()" style="margin: 10px 0; padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                            📋 Copy JSON
+                        </button>
                         <pre id="raw_json" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; margin-top: 10px;"></pre>
                     </details>
                 </div>
@@ -410,6 +413,25 @@
             document.getElementById('birth_date').value = '1990-05-15';
             document.getElementById('birth_time').value = '14:30';
             document.getElementById('birth_place').value = 'Mumbai';
+        }
+        
+        function copyJsonToClipboard() {
+            const jsonText = document.getElementById('raw_json').textContent;
+            
+            navigator.clipboard.writeText(jsonText).then(() => {
+                // Show success feedback
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '✅ Copied!';
+                btn.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
+                
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                }, 2000);
+            }).catch(err => {
+                alert('Failed to copy: ' + err);
+            });
         }
         
         document.getElementById('birthForm').addEventListener('submit', async (e) => {
