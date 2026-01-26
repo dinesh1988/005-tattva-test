@@ -37,10 +37,10 @@ chmod +x deploy.sh
 
 ```powershell
 # Set project
-$env:GCLOUD_PROJECT_ID = "vedastro-project"
+$env:GCLOUD_PROJECT_ID = "tattva-project"
 
 # Deploy
-gcloud run deploy vedastro-api `
+gcloud run deploy tattva-api `
   --source . `
   --region us-central1 `
   --allow-unauthenticated `

@@ -12,12 +12,12 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_ID="${GCLOUD_PROJECT_ID:-vedastro-project}"
-SERVICE_NAME="vedastro-api"
+PROJECT_ID="${GCLOUD_PROJECT_ID:-tattva-project}"
+SERVICE_NAME="tattva-api"
 REGION="${GCLOUD_REGION:-us-central1}"
 ENVIRONMENT="${1:-staging}"
 
-echo -e "${GREEN}🚀 VedAstroPy Deployment Script${NC}"
+echo -e "${GREEN}🚀 Tattva Deployment Script${NC}"
 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Check if gcloud is installed

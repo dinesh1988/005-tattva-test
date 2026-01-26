@@ -8,9 +8,9 @@ steps:
     args: 
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/vedastro-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/vedastro-api:latest'
+      - 'gcr.io/$PROJECT_ID/tattva-api:latest'
       - '.'
     dir: 'VedAstroPy'
 
@@ -18,12 +18,12 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'push'
-      - 'gcr.io/$PROJECT_ID/vedastro-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
 
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'push'
-      - 'gcr.io/$PROJECT_ID/vedastro-api:latest'
+      - 'gcr.io/$PROJECT_ID/tattva-api:latest'
 
   # Step 3: Run tests (optional)
   # - name: 'gcr.io/$PROJECT_ID/vedastro-api:$SHORT_SHA'
@@ -37,9 +37,9 @@ steps:
     args:
       - 'run'
       - 'deploy'
-      - 'vedastro-api'
+      - 'tattva-api'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/vedastro-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -58,8 +58,8 @@ steps:
 
 # Images to store in Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/vedastro-api:$SHORT_SHA'
-  - 'gcr.io/$PROJECT_ID/vedastro-api:latest'
+  - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/tattva-api:latest'
 
 # Build timeout
 timeout: '1200s'

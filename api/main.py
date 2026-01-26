@@ -633,13 +633,16 @@ async def get_complete_profile(birth_data: BirthData):
         planet_interp = get_planet_interpretation(planet.name, rasi_name)
         rasi_interp = get_rasi_interpretation(rasi_name)
         
+        # Unpack nakshatra tuple: (name, number, percentage, pada)
+        nakshatra_name, nakshatra_num, nakshatra_pct, nakshatra_pada = nakshatra
+        
         planets_data.append({
             'planet': planet.name,
             'longitude': round(longitude, 2),
             'rasi': rasi_name,
             'rasi_num': rasi_num,
-            'nakshatra': nakshatra['name'],
-            'pada': nakshatra['pada'],
+            'nakshatra': nakshatra_name,
+            'pada': nakshatra_pada,
             'interpretation': {
                 'signifies': planet_interp.get('signifies', ''),
                 'life_areas': planet_interp.get('life_areas', []),
