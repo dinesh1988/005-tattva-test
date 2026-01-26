@@ -675,7 +675,11 @@
                 };
                 
                 birthChart.planets.forEach(planet => {
-                    const sign = planet[signField];
+                    let sign = planet[signField];
+                    // Remove Sanskrit name in parentheses if present
+                    if (sign && sign.includes('(')) {
+                        sign = sign.split('(')[0].trim();
+                    }
                     const signNum = signToNum[sign];
                     if (signNum) {
                         houseData[signNum].planets.push(planet.planet);
