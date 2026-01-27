@@ -784,52 +784,71 @@
                 };
             }
             
-            // Determine which field to use based on chart type
-            let signField, houseField;
+            // Determine which fields to use based on chart type
+            let signField, signNumField;
             if (chartType === 'd2') {
                 signField = 'd2_hora';
+                signNumField = 'd2_num';
             } else if (chartType === 'd3') {
                 signField = 'd3_drekkana';
+                signNumField = 'd3_num';
             } else if (chartType === 'd4') {
                 signField = 'd4_chaturthamsa';
+                signNumField = 'd4_num';
             } else if (chartType === 'd5') {
                 signField = 'd5_panchamsa';
+                signNumField = 'd5_num';
             } else if (chartType === 'd6') {
                 signField = 'd6_shashtamsa';
+                signNumField = 'd6_num';
             } else if (chartType === 'd7') {
                 signField = 'd7_saptamsa';
+                signNumField = 'd7_num';
             } else if (chartType === 'd8') {
                 signField = 'd8_ashtamsa';
+                signNumField = 'd8_num';
             } else if (chartType === 'd9') {
                 signField = 'd9_navamsa';
+                signNumField = 'd9_num';
             } else if (chartType === 'd10') {
                 signField = 'd10_dasamsa';
+                signNumField = 'd10_num';
             } else if (chartType === 'd11') {
                 signField = 'd11_ekadasamsa';
+                signNumField = 'd11_num';
             } else if (chartType === 'd12') {
                 signField = 'd12_dwadasamsa';
+                signNumField = 'd12_num';
             } else if (chartType === 'd16') {
                 signField = 'd16_shodasamsa';
+                signNumField = 'd16_num';
             } else if (chartType === 'd20') {
                 signField = 'd20_vimsamsa';
+                signNumField = 'd20_num';
             } else if (chartType === 'd24') {
                 signField = 'd24_chaturvimsamsa';
+                signNumField = 'd24_num';
             } else if (chartType === 'd27') {
                 signField = 'd27_bhamsa';
+                signNumField = 'd27_num';
             } else if (chartType === 'd30') {
                 signField = 'd30_trimsamsa';
+                signNumField = 'd30_num';
             } else if (chartType === 'd40') {
                 signField = 'd40_khavedamsa';
+                signNumField = 'd40_num';
             } else if (chartType === 'd45') {
                 signField = 'd45_akshavedamsa';
+                signNumField = 'd45_num';
             } else if (chartType === 'd60') {
                 signField = 'd60_shashtiamsa';
+                signNumField = 'd60_num';
             } else {
                 signField = 'rasi';
-                houseField = 'house';
+                signNumField = 'rasi_num';
             }
             
-            // For D1, use houses. For D9/D10, show signs 1-12
+            // For D1, use houses. For divisional charts, use sign numbers
             if (chartType === 'd1') {
                 // Add Lagna to house 1
                 houseData[1].sign = birthChart.lagna.rasi;
@@ -844,23 +863,19 @@
                     }
                 });
             } else {
-                // For D9/D10, group by signs (treat signs as houses)
-                const signToNum = {
-                    'Aries': 1, 'Taurus': 2, 'Gemini': 3, 'Cancer': 4,
-                    'Leo': 5, 'Virgo': 6, 'Libra': 7, 'Scorpio': 8,
-                    'Sagittarius': 9, 'Capricorn': 10, 'Aquarius': 11, 'Pisces': 12
-                };
-                
+                // For divisional charts, group by sign numbers (1-12)
                 birthChart.planets.forEach(planet => {
-                    let sign = planet[signField];
+                    const signNum = planet[signNumField];
+                    let signName = planet[signField];
+                    
                     // Remove Sanskrit name in parentheses if present
-                    if (sign && sign.includes('(')) {
-                        sign = sign.split('(')[0].trim();
+                    if (signName && signName.includes('(')) {
+                        signName = signName.split('(')[0].trim();
                     }
-                    const signNum = signToNum[sign];
-                    if (signNum) {
+                    
+                    if (signNum && signNum >= 1 && signNum <= 12) {
                         houseData[signNum].planets.push(planet.planet);
-                        houseData[signNum].sign = sign;
+                        houseData[signNum].sign = signName || `Sign ${signNum}`;
                     }
                 });
             }
