@@ -289,21 +289,107 @@
                 </div>
                 
                 <div class="result-section">
-                    <h3>📊 Divisional Charts</h3>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #667eea;">
-                        <button onclick="showChart('d1')" id="btn-d1" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
-                            D1 - Rasi (Birth Chart)
+                    <h3>📊 Divisional Charts (Shodashvarga - All 20 Charts)</h3>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #667eea; flex-wrap: wrap;">
+                        <button onclick="showChart('d1')" id="btn-d1" style="padding: 10px 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D1 - Rasi
                         </button>
-                        <button onclick="showChart('d9')" id="btn-d9" style="padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
-                            D9 - Navamsa (Marriage)
+                        <button onclick="showChart('d2')" id="btn-d2" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D2 - Hora
                         </button>
-                        <button onclick="showChart('d10')" id="btn-d10" style="padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600;">
-                            D10 - Dasamsa (Career)
+                        <button onclick="showChart('d3')" id="btn-d3" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D3 - Drekkana
+                        </button>
+                        <button onclick="showChart('d4')" id="btn-d4" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D4 - Chaturthamsa
+                        </button>
+                        <button onclick="showChart('d5')" id="btn-d5" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D5 - Panchamsa
+                        </button>
+                        <button onclick="showChart('d6')" id="btn-d6" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D6 - Shashtamsa
+                        </button>
+                        <button onclick="showChart('d7')" id="btn-d7" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D7 - Saptamsa
+                        </button>
+                        <button onclick="showChart('d8')" id="btn-d8" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D8 - Ashtamsa
+                        </button>
+                        <button onclick="showChart('d9')" id="btn-d9" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D9 - Navamsa
+                        </button>
+                        <button onclick="showChart('d10')" id="btn-d10" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D10 - Dasamsa
+                        </button>
+                        <button onclick="showChart('d11')" id="btn-d11" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D11 - Ekadasamsa
+                        </button>
+                        <button onclick="showChart('d12')" id="btn-d12" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D12 - Dwadasamsa
+                        </button>
+                        <button onclick="showChart('d16')" id="btn-d16" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D16 - Shodasamsa
+                        </button>
+                        <button onclick="showChart('d20')" id="btn-d20" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D20 - Vimsamsa
+                        </button>
+                        <button onclick="showChart('d24')" id="btn-d24" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D24 - Chaturvimsamsa
+                        </button>
+                        <button onclick="showChart('d27')" id="btn-d27" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D27 - Bhamsa
+                        </button>
+                        <button onclick="showChart('d30')" id="btn-d30" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D30 - Trimsamsa
+                        </button>
+                        <button onclick="showChart('d40')" id="btn-d40" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D40 - Khavedamsa
+                        </button>
+                        <button onclick="showChart('d45')" id="btn-d45" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D45 - Akshavedamsa
+                        </button>
+                        <button onclick="showChart('d60')" id="btn-d60" style="padding: 10px 15px; background: #f0f0f0; color: #333; border: none; border-radius: 5px 5px 0 0; cursor: pointer; font-weight: 600; font-size: 12px;">
+                            D60 - Shashtiamsa
                         </button>
                     </div>
                     <div id="d1_chart" style="display: block;">
-                        <h4 style="color: #667eea; margin-bottom: 10px;">🏠 D1 - Houses & Planets</h4>
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🏠 D1 - Rasi (Birth Chart)</h4>
                         <div id="house_chart_d1" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d2_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">💰 D2 Hora - Wealth & Finances</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows financial prosperity, earning capacity, and material wealth.</p>
+                        <div id="house_chart_d2" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d3_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">👨‍👩‍👧 D3 Drekkana - Siblings & Courage</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals siblings, courage, communication, and short journeys.</p>
+                        <div id="house_chart_d3" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d4_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🏡 D4 Chaturthamsa - Property & Fortune</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows property, real estate, vehicles, and general fortune.</p>
+                        <div id="house_chart_d4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d5_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🌟 D5 Panchamsa - Spiritual Merit & Fame</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows spiritual merit, fame, power, and accumulated good karma.</p>
+                        <div id="house_chart_d5" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d6_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🏥 D6 Shashtamsa - Health & Enemies</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals health issues, diseases, enemies, debts, and obstacles.</p>
+                        <div id="house_chart_d6" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d7_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">👶 D7 Saptamsa - Children & Progeny</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals children, creativity, and grandchildren.</p>
+                        <div id="house_chart_d7" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d8_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">⚠️ D8 Ashtamsa - Longevity & Sudden Events</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows longevity, sudden events, accidents, and transformations.</p>
+                        <div id="house_chart_d8" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
                     </div>
                     <div id="d9_chart" style="display: none;">
                         <h4 style="color: #667eea; margin-bottom: 10px;">💑 D9 Navamsa - Marriage & Spouse</h4>
@@ -314,6 +400,51 @@
                         <h4 style="color: #667eea; margin-bottom: 10px;">💼 D10 Dasamsa - Career & Profession</h4>
                         <p style="color: #666; font-size: 14px; margin-bottom: 15px;">The Dasamsa chart reveals career path, professional success, and achievements.</p>
                         <div id="house_chart_d10" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d12_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">👨‍👩‍👦 D12 Dwadasamsa - Parents</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows relationship with parents and their influence on life.</p>
+                        <div id="house_chart_d12" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d16_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🚗 D16 Shodasamsa - Vehicles & Comforts</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals vehicles, comforts, luxuries, and material happiness.</p>
+                        <div id="house_chart_d16" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d20_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🙏 D20 Vimsamsa - Spiritual Progress</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows spiritual practices, upasana (worship), and divine grace.</p>
+                        <div id="house_chart_d20" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d24_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">📚 D24 Chaturvimsamsa - Education & Learning</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals education, academic success, knowledge acquisition.</p>
+                        <div id="house_chart_d24" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d27_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">💪 D27 Bhamsa - Strength & Weakness</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows physical and mental strength, stamina, and weaknesses.</p>
+                        <div id="house_chart_d27" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d30_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">😈 D30 Trimsamsa - Evils & Misfortunes</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Reveals evils, misfortunes, troubles, and negative influences.</p>
+                        <div id="house_chart_d30" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d40_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">👩 D40 Khavedamsa - Maternal Legacy</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows auspicious/inauspicious effects, maternal heritage.</p>
+                        <div id="house_chart_d40" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d45_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">👨 D45 Akshavedamsa - Paternal Legacy</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Shows general well-being and paternal heritage.</p>
+                        <div id="house_chart_d45" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
+                    </div>
+                    <div id="d60_chart" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">🔮 D60 Shashtiamsa - Past Life Karma</h4>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">The most subtle division - reveals past life karma and deepest influences.</p>
+                        <div id="house_chart_d60" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;"></div>
                     </div>
                 </div>
                 
@@ -530,8 +661,25 @@
             
             // Display all divisional charts
             displayHouseChart(result.birth_chart, 'd1');
+            displayHouseChart(result.birth_chart, 'd2');
+            displayHouseChart(result.birth_chart, 'd3');
+            displayHouseChart(result.birth_chart, 'd4');
+            displayHouseChart(result.birth_chart, 'd5');
+            displayHouseChart(result.birth_chart, 'd6');
+            displayHouseChart(result.birth_chart, 'd7');
+            displayHouseChart(result.birth_chart, 'd8');
             displayHouseChart(result.birth_chart, 'd9');
             displayHouseChart(result.birth_chart, 'd10');
+            displayHouseChart(result.birth_chart, 'd11');
+            displayHouseChart(result.birth_chart, 'd12');
+            displayHouseChart(result.birth_chart, 'd16');
+            displayHouseChart(result.birth_chart, 'd20');
+            displayHouseChart(result.birth_chart, 'd24');
+            displayHouseChart(result.birth_chart, 'd27');
+            displayHouseChart(result.birth_chart, 'd30');
+            displayHouseChart(result.birth_chart, 'd40');
+            displayHouseChart(result.birth_chart, 'd45');
+            displayHouseChart(result.birth_chart, 'd60');
             
             // Active Yogas
             const activeYogas = result.yogas.filter(y => y.present);
@@ -589,17 +737,14 @@
         
         function showChart(chartType) {
             // Hide all charts
-            document.getElementById('d1_chart').style.display = 'none';
-            document.getElementById('d9_chart').style.display = 'none';
-            document.getElementById('d10_chart').style.display = 'none';
-            
-            // Reset all buttons
-            document.getElementById('btn-d1').style.background = '#f0f0f0';
-            document.getElementById('btn-d1').style.color = '#333';
-            document.getElementById('btn-d9').style.background = '#f0f0f0';
-            document.getElementById('btn-d9').style.color = '#333';
-            document.getElementById('btn-d10').style.background = '#f0f0f0';
-            document.getElementById('btn-d10').style.color = '#333';
+            ['d1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd16', 'd20', 'd24', 'd27', 'd30', 'd40', 'd45', 'd60'].forEach(type => {
+                document.getElementById(type + '_chart').style.display = 'none';
+                const btn = document.getElementById('btn-' + type);
+                if (btn) {
+                    btn.style.background = '#f0f0f0';
+                    btn.style.color = '#333';
+                }
+            });
             
             // Show selected chart and highlight button
             document.getElementById(chartType + '_chart').style.display = 'block';
@@ -641,12 +786,44 @@
             
             // Determine which field to use based on chart type
             let signField, houseField;
-            if (chartType === 'd9') {
+            if (chartType === 'd2') {
+                signField = 'd2_hora';
+            } else if (chartType === 'd3') {
+                signField = 'd3_drekkana';
+            } else if (chartType === 'd4') {
+                signField = 'd4_chaturthamsa';
+            } else if (chartType === 'd5') {
+                signField = 'd5_panchamsa';
+            } else if (chartType === 'd6') {
+                signField = 'd6_shashtamsa';
+            } else if (chartType === 'd7') {
+                signField = 'd7_saptamsa';
+            } else if (chartType === 'd8') {
+                signField = 'd8_ashtamsa';
+            } else if (chartType === 'd9') {
                 signField = 'd9_navamsa';
-                // For divisional charts, we calculate house from sign position
-                // Lagna in D9 = house 1 in D9, but we show signs not houses
             } else if (chartType === 'd10') {
                 signField = 'd10_dasamsa';
+            } else if (chartType === 'd11') {
+                signField = 'd11_ekadasamsa';
+            } else if (chartType === 'd12') {
+                signField = 'd12_dwadasamsa';
+            } else if (chartType === 'd16') {
+                signField = 'd16_shodasamsa';
+            } else if (chartType === 'd20') {
+                signField = 'd20_vimsamsa';
+            } else if (chartType === 'd24') {
+                signField = 'd24_chaturvimsamsa';
+            } else if (chartType === 'd27') {
+                signField = 'd27_bhamsa';
+            } else if (chartType === 'd30') {
+                signField = 'd30_trimsamsa';
+            } else if (chartType === 'd40') {
+                signField = 'd40_khavedamsa';
+            } else if (chartType === 'd45') {
+                signField = 'd45_akshavedamsa';
+            } else if (chartType === 'd60') {
+                signField = 'd60_shashtiamsa';
             } else {
                 signField = 'rasi';
                 houseField = 'house';
@@ -863,27 +1040,6 @@
                         `).join('')}
                     </table>
                 `;
-            }
-            
-            // Prediction Framework
-            if (result.prediction_framework && result.prediction_framework.life_area_predictions) {
-                html += `<h4 style="color: #667eea; margin-top: 20px;">🔮 Prediction Framework</h4><p>`;
-                
-                const areas = result.prediction_framework.life_area_predictions;
-                if (areas.career && areas.career.significators) {
-                    html += `<strong>Career:</strong> Significators - ${areas.career.significators.join(', ')}<br>`;
-                }
-                if (areas.relationships && areas.relationships.significators) {
-                    html += `<strong>Relationships:</strong> Significators - ${areas.relationships.significators.join(', ')}<br>`;
-                }
-                if (areas.wealth && areas.wealth.significators) {
-                    html += `<strong>Wealth:</strong> Significators - ${areas.wealth.significators.join(', ')}<br>`;
-                }
-                if (areas.health && areas.health.significators) {
-                    html += `<strong>Health:</strong> Significators - ${areas.health.significators.join(', ')}`;
-                }
-                
-                html += '</p>';
             }
             
             html += '</div>';
