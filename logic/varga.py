@@ -63,14 +63,35 @@ def get_d4_chaturthamsa(longitude: float) -> tuple[str, int]:
     """
     D-4 Chaturthamsa Chart (Property/Fortune)
     Each sign divided into 4 parts of 7°30' each.
-    Starts from the sign itself and proceeds in order.
+    Follows element pattern: Cardinal -> Fixed -> Mutable -> Cardinal
+    
+    Pattern:
+    - Cardinal signs (Ari,Can,Lib,Cap): Cycle through all 4 cardinal signs
+    - Fixed signs (Tau,Leo,Sco,Aqu): Cycle through all 4 fixed signs
+    - Mutable signs (Gem,Vir,Sag,Pis): Cycle through all 4 mutable signs
     """
     longitude = longitude % 360
     sign_num = int(longitude / 30) + 1
     degree_in_sign = longitude % 30
     
     part = int(degree_in_sign / 7.5)  # 0, 1, 2, or 3
-    chaturthamsa_sign = ((sign_num - 1 + part) % 12) + 1
+    
+    # Determine sign type (Cardinal=1, Fixed=2, Mutable=3)
+    sign_type = ((sign_num - 1) % 3) + 1
+    
+    # Cardinal signs: Aries(1), Cancer(4), Libra(7), Capricorn(10)
+    # Fixed signs: Taurus(2), Leo(5), Scorpio(8), Aquarius(11)
+    # Mutable signs: Gemini(3), Virgo(6), Sagittarius(9), Pisces(12)
+    
+    if sign_type == 1:  # Cardinal signs
+        cardinal_signs = [1, 4, 7, 10]  # Ari, Can, Lib, Cap
+        chaturthamsa_sign = cardinal_signs[part]
+    elif sign_type == 2:  # Fixed signs
+        fixed_signs = [2, 5, 8, 11]  # Tau, Leo, Sco, Aqu
+        chaturthamsa_sign = fixed_signs[part]
+    else:  # Mutable signs (sign_type == 3)
+        mutable_signs = [3, 6, 9, 12]  # Gem, Vir, Sag, Pis
+        chaturthamsa_sign = mutable_signs[part]
     
     return RASIS[chaturthamsa_sign - 1], chaturthamsa_sign
 
