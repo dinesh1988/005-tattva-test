@@ -540,8 +540,11 @@ async def get_complete_profile(birth_data: BirthData):
     from logic.lordship import get_lord_of_house
     from logic.psychic_profile import get_house_from_longitude
     from logic.varga import (
-        get_d2_hora, get_d3_drekkana, get_d4_chaturthamsa,
-        get_d7_saptamsa, get_d9_navamsa, get_d10_dasamsa, get_d12_dwadasamsa
+        get_d2_hora, get_d3_drekkana, get_d4_chaturthamsa, get_d5_panchamsa,
+        get_d6_shashtamsa, get_d7_saptamsa, get_d8_ashtamsa, get_d9_navamsa,
+        get_d10_dasamsa, get_d11_ekadasamsa, get_d12_dwadasamsa, get_d16_shodasamsa,
+        get_d20_vimsamsa, get_d24_chaturvimsamsa, get_d27_bhamsa, get_d30_trimsamsa,
+        get_d40_khavedamsa, get_d45_akshavedamsa, get_d60_shashtiamsa
     )
     
     # Helper function for rasi interpretations
@@ -638,14 +641,26 @@ async def get_complete_profile(birth_data: BirthData):
         # Calculate house position
         house = get_house_from_longitude(longitude, lagna_long)
         
-        # Calculate divisional charts
+        # Calculate divisional charts - All 20 Vargas (Shodashvarga)
         d2_sign, d2_num = get_d2_hora(longitude)
         d3_sign, d3_num = get_d3_drekkana(longitude)
         d4_sign, d4_num = get_d4_chaturthamsa(longitude)
+        d5_sign, d5_num = get_d5_panchamsa(longitude)
+        d6_sign, d6_num = get_d6_shashtamsa(longitude)
         d7_sign, d7_num = get_d7_saptamsa(longitude)
+        d8_sign, d8_num = get_d8_ashtamsa(longitude)
         d9_sign, d9_num = get_d9_navamsa(longitude)
         d10_sign, d10_num = get_d10_dasamsa(longitude)
+        d11_sign, d11_num = get_d11_ekadasamsa(longitude)
         d12_sign, d12_num = get_d12_dwadasamsa(longitude)
+        d16_sign, d16_num = get_d16_shodasamsa(longitude)
+        d20_sign, d20_num = get_d20_vimsamsa(longitude)
+        d24_sign, d24_num = get_d24_chaturvimsamsa(longitude)
+        d27_sign, d27_num = get_d27_bhamsa(longitude)
+        d30_sign, d30_num = get_d30_trimsamsa(longitude)
+        d40_sign, d40_num = get_d40_khavedamsa(longitude)
+        d45_sign, d45_num = get_d45_akshavedamsa(longitude)
+        d60_sign, d60_num = get_d60_shashtiamsa(longitude)
         
         if planet == Planet.Moon:
             moon_sign = rasi_name
@@ -670,14 +685,38 @@ async def get_complete_profile(birth_data: BirthData):
             'd3_num': d3_num,
             'd4_chaturthamsa': d4_sign,
             'd4_num': d4_num,
+            'd5_panchamsa': d5_sign,
+            'd5_num': d5_num,
+            'd6_shashtamsa': d6_sign,
+            'd6_num': d6_num,
             'd7_saptamsa': d7_sign,
             'd7_num': d7_num,
+            'd8_ashtamsa': d8_sign,
+            'd8_num': d8_num,
             'd9_navamsa': d9_sign,
             'd9_num': d9_num,
             'd10_dasamsa': d10_sign,
             'd10_num': d10_num,
+            'd11_ekadasamsa': d11_sign,
+            'd11_num': d11_num,
             'd12_dwadasamsa': d12_sign,
             'd12_num': d12_num,
+            'd16_shodasamsa': d16_sign,
+            'd16_num': d16_num,
+            'd20_vimsamsa': d20_sign,
+            'd20_num': d20_num,
+            'd24_chaturvimsamsa': d24_sign,
+            'd24_num': d24_num,
+            'd27_bhamsa': d27_sign,
+            'd27_num': d27_num,
+            'd30_trimsamsa': d30_sign,
+            'd30_num': d30_num,
+            'd40_khavedamsa': d40_sign,
+            'd40_num': d40_num,
+            'd45_akshavedamsa': d45_sign,
+            'd45_num': d45_num,
+            'd60_shashtiamsa': d60_sign,
+            'd60_num': d60_num,
             'nakshatra': nakshatra_name,
             'pada': nakshatra_pada,
             'interpretation': {
