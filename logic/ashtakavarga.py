@@ -124,3 +124,118 @@ def get_sarvashtakavarga_points(astro_time: AstroTime) -> dict[int, int]:
                     sarvashtaka[target_sign] += 1
                     
     return sarvashtaka
+
+
+def get_bhinnashtakavarga(planet_name: str, astro_time: AstroTime) -> dict[int, int]:
+    """
+    Calculates the Bhinnashtakavarga (individual Ashtakavarga) for a specific planet.
+    Shows how this planet gains benefic points from all sources across 12 signs.
+    
+    Args:
+        planet_name: Name of planet ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn")
+        astro_time: AstroTime object
+        
+    Returns:
+        Dictionary {SignNumber (1-12): Points} for this planet only
+    """
+    
+    # 1. Calculate Rasi Numbers for all Planets + Ascendant
+    positions = {}
+    
+    # Planets
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus, Planet.Saturn]:
+        long = get_planet_longitude(planet, astro_time)
+        _, rasi_num = get_rasi(long)
+        positions[planet.name] = rasi_num
+        
+    # Ascendant
+    lagnam_long = get_lagnam(astro_time)
+    _, lagnam_num = get_rasi(lagnam_long)
+    positions["Ascendant"] = lagnam_num
+    
+    # 2. Initialize Points Dictionary for this planet only
+    bav = {i: 0 for i in range(1, 13)}
+    
+    # 3. Calculate Points from all sources
+    for source_planet, source_rasi in positions.items():
+        key = (planet_name, source_planet)
+        if key in BENEFIC_POINTS:
+            benefic_houses = BENEFIC_POINTS[key]
+            
+            for house in benefic_houses:
+                # Calculate target sign
+                target_sign = (source_rasi + house - 1) % 12
+                if target_sign == 0:
+                    target_sign = 12
+                    
+                bav[target_sign] += 1
+                    
+    return bav
+
+
+def get_all_bhinnashtakavarga(astro_time: AstroTime) -> dict[str, dict[int, int]]:
+    """
+    Calculates Bhinnashtakavarga for all 7 planets.
+    
+    Returns:
+        Dictionary with planet names as keys, each containing {SignNumber: Points}
+        Example: {
+            "Sun": {1: 3, 2: 4, 3: 5, ...},
+            "Moon": {1: 4, 2: 3, 3: 6, ...},
+            ...
+        }
+    """
+    planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+    return {planet: get_bhinnashtakavarga(planet, astro_time) for planet in planets}
+
+
+def get_bhinnashtakavarga_with_sources(planet_name: str, astro_time: AstroTime) -> dict[int, dict[str, int]]:
+    """
+    Calculates detailed Bhinnashtakavarga showing contribution from each source planet.
+    
+    Args:
+        planet_name: Name of planet ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn")
+        astro_time: AstroTime object
+        
+    Returns:
+        Dictionary {SignNumber (1-12): {SourcePlanet: PointCount}}
+        Example: {
+            1: {"Sun": 1, "Moon": 0, "Mars": 1, "Mercury": 0, ...},
+            2: {"Sun": 1, "Moon": 1, "Mars": 0, "Mercury": 1, ...},
+            ...
+        }
+    """
+    
+    # 1. Calculate Rasi Numbers for all Planets + Ascendant
+    positions = {}
+    
+    # Planets
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus, Planet.Saturn]:
+        long = get_planet_longitude(planet, astro_time)
+        _, rasi_num = get_rasi(long)
+        positions[planet.name] = rasi_num
+        
+    # Ascendant
+    lagnam_long = get_lagnam(astro_time)
+    _, lagnam_num = get_rasi(lagnam_long)
+    positions["Ascendant"] = lagnam_num
+    
+    # 2. Initialize detailed structure
+    source_names = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Ascendant"]
+    bav_detailed = {i: {source: 0 for source in source_names} for i in range(1, 13)}
+    
+    # 3. Calculate Points from each source
+    for source_planet, source_rasi in positions.items():
+        key = (planet_name, source_planet)
+        if key in BENEFIC_POINTS:
+            benefic_houses = BENEFIC_POINTS[key]
+            
+            for house in benefic_houses:
+                # Calculate target sign
+                target_sign = (source_rasi + house - 1) % 12
+                if target_sign == 0:
+                    target_sign = 12
+                    
+                bav_detailed[target_sign][source_planet] = 1
+                    
+    return bav_detailed

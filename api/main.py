@@ -43,6 +43,7 @@ from logic.varga import get_all_vargas
 from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
 from logic.rasi import RASIS
+from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_points
 
 # Database imports
 from api.database import (
@@ -829,7 +830,31 @@ async def get_complete_profile(birth_data: BirthData):
     from logic.numerology import get_full_numerology
     numerology = get_full_numerology(birth_data.name, birth_datetime)
     
-    # 7. EXECUTIVE SUMMARY for LLMs
+    # 7. ASHTAKAVARGA (Computationally intensive - store this!)
+    # Get BAV (Bhinnashtakavarga) for all 7 planets
+    bav_data = get_all_bhinnashtakavarga(astro_time)
+    
+    # Get SAV (Sarvashtakavarga) total points
+    sav_data = get_sarvashtakavarga_points(astro_time)
+    
+    # Format as arrays (Aries to Pisces = indices 0-11)
+    ashtakavarga = {
+        "bav": {
+            "sun": [bav_data["Sun"][i] for i in range(1, 13)],
+            "moon": [bav_data["Moon"][i] for i in range(1, 13)],
+            "mars": [bav_data["Mars"][i] for i in range(1, 13)],
+            "mercury": [bav_data["Mercury"][i] for i in range(1, 13)],
+            "jupiter": [bav_data["Jupiter"][i] for i in range(1, 13)],
+            "venus": [bav_data["Venus"][i] for i in range(1, 13)],
+            "saturn": [bav_data["Saturn"][i] for i in range(1, 13)]
+        },
+        "sav": {
+            "total_points": [sav_data[i] for i in range(1, 13)],
+            "interpretation": "Points 28+ = Good transit, <25 = Challenging transit"
+        }
+    }
+    
+    # 8. EXECUTIVE SUMMARY for LLMs
     active_yogas = [y['name'] for y in yogas_enhanced if y.get('present', False)]
     
     executive_summary = {
@@ -930,6 +955,7 @@ async def get_complete_profile(birth_data: BirthData):
         'dasa': dasa_interpretation,
         'yogas': yogas_enhanced,
         'numerology': numerology,
+        'ashtakavarga': ashtakavarga,
         'prediction_framework': prediction_framework,
         'generated_at': datetime.now().isoformat(),
         'llm_instructions': {
