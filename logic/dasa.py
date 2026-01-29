@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Dasa Lords in order (Vimshottari)
 # (Lord Name, Duration in Years)
@@ -6,6 +6,92 @@ DASA_LORDS = [
     ("Ketu", 7), ("Venus", 20), ("Sun", 6), ("Moon", 10), ("Mars", 7),
     ("Rahu", 18), ("Jupiter", 16), ("Saturn", 19), ("Mercury", 17)
 ]
+
+def get_vimshottari_dasa_schedule(moon_nakshatra_num: int, moon_nakshatra_percentage: float, 
+                                  birth_date: datetime) -> dict:
+    """
+    Generates the complete 120-year Vimshottari Dasa schedule from birth.
+    
+    Returns:
+    - All 9 Maha Dasas with start/end dates
+    - All Bhuktis (sub-periods) within each Maha Dasa
+    - Balance of birth Dasa
+    - Complete timeline for life planning
+    """
+    
+    # 1. Identify Birth Dasa Lord
+    lord_index = (moon_nakshatra_num - 1) % 9
+    lord_name, lord_years = DASA_LORDS[lord_index]
+    
+    # 2. Calculate Balance of Birth Dasa
+    remaining_percentage = 100.0 - moon_nakshatra_percentage
+    balance_years = (remaining_percentage / 100.0) * lord_years
+    balance_days = balance_years * 365.2425
+    
+    # 3. Calculate start date of birth Dasa (retroactively)
+    elapsed_years = (moon_nakshatra_percentage / 100.0) * lord_years
+    elapsed_days = elapsed_years * 365.2425
+    birth_dasa_start_date = birth_date - timedelta(days=elapsed_days)
+    
+    # 4. Build complete schedule
+    schedule = {
+        "birth_dasa": lord_name,
+        "birth_dasa_balance_years": round(balance_years, 2),
+        "maha_dasas": []
+    }
+    
+    current_date = birth_dasa_start_date
+    current_lord_index = lord_index
+    
+    # Generate all 9 Maha Dasas (one full cycle)
+    for cycle in range(9):
+        maha_lord_name, maha_lord_years = DASA_LORDS[current_lord_index]
+        maha_dasa_days = maha_lord_years * 365.2425
+        maha_dasa_end_date = current_date + timedelta(days=maha_dasa_days)
+        
+        # Calculate all Bhuktis within this Maha Dasa
+        bhuktis = []
+        bhukti_start_date = current_date
+        bhukti_lord_index = current_lord_index  # Bhukti starts with Maha Dasa lord
+        
+        for bhukti_cycle in range(9):
+            bhukti_lord_name, bhukti_lord_years = DASA_LORDS[bhukti_lord_index]
+            
+            # Formula: (Maha Dasa Years × Bhukti Lord Years) / 120
+            bhukti_duration_years = (maha_lord_years * bhukti_lord_years) / 120.0
+            bhukti_duration_days = bhukti_duration_years * 365.2425
+            bhukti_end_date = bhukti_start_date + timedelta(days=bhukti_duration_days)
+            
+            # Check if this period includes birth
+            is_birth_period = birth_date >= bhukti_start_date and birth_date < bhukti_end_date
+            
+            bhuktis.append({
+                "bhukti_lord": bhukti_lord_name,
+                "start_date": bhukti_start_date.strftime("%Y-%m-%d"),
+                "end_date": bhukti_end_date.strftime("%Y-%m-%d"),
+                "duration_years": round(bhukti_duration_years, 2),
+                "is_birth_bhukti": is_birth_period
+            })
+            
+            bhukti_start_date = bhukti_end_date
+            bhukti_lord_index = (bhukti_lord_index + 1) % 9
+        
+        # Check if birth falls in this Maha Dasa
+        is_birth_dasa = birth_date >= current_date and birth_date < maha_dasa_end_date
+        
+        schedule["maha_dasas"].append({
+            "dasa_lord": maha_lord_name,
+            "start_date": current_date.strftime("%Y-%m-%d"),
+            "end_date": maha_dasa_end_date.strftime("%Y-%m-%d"),
+            "duration_years": maha_lord_years,
+            "is_birth_dasa": is_birth_dasa,
+            "bhuktis": bhuktis
+        })
+        
+        current_date = maha_dasa_end_date
+        current_lord_index = (current_lord_index + 1) % 9
+    
+    return schedule
 
 def get_vimshottari_dasa(moon_nakshatra_num: int, moon_nakshatra_percentage: float, birth_date: datetime, current_date: datetime) -> tuple[str, str]:
     """

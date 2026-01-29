@@ -38,7 +38,7 @@ from logic.time import AstroTime
 from logic.consts import Planet
 from logic.panchang import get_tithi, get_yoga, get_nitya_yoga_details
 from logic.nakshatra import get_nakshatra, get_tara_bala, NAKSHATRAS
-from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_full
+from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_full, get_vimshottari_dasa_schedule
 from logic.varga import get_all_vargas
 from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
@@ -787,6 +787,9 @@ async def get_complete_profile(birth_data: BirthData):
     # Use nakshatra values already calculated above
     maha_dasa_planet, bhukti_planet = get_vimshottari_dasa(nakshatra_num, nakshatra_pct, birth_datetime_tz, current_dt)
     
+    # Calculate full 120-year Vimshottari Dasa schedule
+    dasa_schedule = get_vimshottari_dasa_schedule(nakshatra_num, nakshatra_pct, birth_datetime_tz)
+    
     current_year = datetime.now().year
     birth_year = birth_datetime.year
     age = current_year - birth_year
@@ -801,7 +804,8 @@ async def get_complete_profile(birth_data: BirthData):
         },
         'current_age': age,
         'life_stage': 'Youth' if age < 30 else 'Middle Age' if age < 60 else 'Elder',
-        'prediction_note': f"Currently in {maha_dasa_planet} Mahadasa - this planet's significations are dominant in life now."
+        'prediction_note': f"Currently in {maha_dasa_planet} Mahadasa - this planet's significations are dominant in life now.",
+        'full_schedule': dasa_schedule  # Complete 120-year timeline
     }
     
     # 5. YOGAS with detailed interpretations
