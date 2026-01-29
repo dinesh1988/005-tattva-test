@@ -72,6 +72,8 @@ CITIES: Dict[str, Tuple[float, float, str]] = {
     'Washington DC': (38.9072, -77.0369, 'America/New_York'),
     'San Diego': (32.7157, -117.1611, 'America/Los_Angeles'),
     'Las Vegas': (36.1699, -115.1398, 'America/Los_Angeles'),
+    'Novi': (42.4806, -83.4755, 'America/Detroit'),
+    'Detroit': (42.3314, -83.0458, 'America/Detroit'),
     
     # UK & Europe
     'London': (51.5074, -0.1278, 'Europe/London'),
