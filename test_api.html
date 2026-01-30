@@ -752,6 +752,9 @@
             // Functional Nature Display
             if (result.functional_nature) {
                 displayFunctionalNature(result.functional_nature);
+                if (result.functional_nature_detailed) {
+                    displayFunctionalNatureDetailed(result.functional_nature_detailed);
+                }
             }
             
             // Shadbala Display
@@ -970,6 +973,78 @@
             const container = document.getElementById('functional_nature');
             container.innerHTML = '';
             
+            // Display categorized format (main prediction format)
+            let html = `
+                <div style="background: linear-gradient(135deg, #28a74522 0%, #4CAF5022 100%); padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #28a745;">
+                    <h4 style="margin: 0 0 15px 0; color: #333;">🎯 Categorized Nature (For Predictions)</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                        
+                        <!-- Yogakaraka -->
+                        <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #FFD700;">
+                            <div style="font-weight: 700; font-size: 16px; color: #FFD700; margin-bottom: 10px;">
+                                👑 YOGAKARAKA (Best Planet)
+                            </div>
+                            <div style="font-size: 18px; font-weight: 600; color: #333;">
+                                ${functionalNature.yogakaraka || 'None'}
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                ${functionalNature.yogakaraka ? 'Extremely lucky! Best Dasa period' : 'No special yogakaraka for this ascendant'}
+                            </div>
+                        </div>
+                        
+                        <!-- Benefics -->
+                        <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #28a745;">
+                            <div style="font-weight: 700; font-size: 16px; color: #28a745; margin-bottom: 10px;">
+                                ✅ BENEFICS (Luck Bringers)
+                            </div>
+                            <div style="font-size: 14px; color: #333;">
+                                ${functionalNature.benefics.join(', ') || 'None'}
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                Bring opportunities & fortune
+                            </div>
+                        </div>
+                        
+                        <!-- Malefics -->
+                        <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #f44336;">
+                            <div style="font-weight: 700; font-size: 16px; color: #f44336; margin-bottom: 10px;">
+                                ⚠️ MALEFICS (Trouble Makers)
+                            </div>
+                            <div style="font-size: 14px; color: #333;">
+                                ${functionalNature.malefics.join(', ') || 'None'}
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                Cause challenges & obstacles
+                            </div>
+                        </div>
+                        
+                        <!-- Neutrals -->
+                        <div style="background: white; padding: 15px; border-radius: 8px; border: 2px solid #9e9e9e;">
+                            <div style="font-weight: 700; font-size: 16px; color: #9e9e9e; margin-bottom: 10px;">
+                                ⚖️ NEUTRALS (Mixed Results)
+                            </div>
+                            <div style="font-size: 14px; color: #333;">
+                                ${functionalNature.neutrals.join(', ') || 'None'}
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                Context-dependent results
+                            </div>
+                        </div>
+                        
+                    </div>
+                    <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+                        <strong>💡 Prediction Tip:</strong> During Dasa/Bhukti of <strong style="color: #28a745;">${functionalNature.benefics.join(' or ')}</strong>, expect positive results. 
+                        During <strong style="color: #f44336;">${functionalNature.malefics.join(' or ')}</strong> periods, be cautious and proactive.
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+        }
+        
+        function displayFunctionalNatureDetailed(functionalNatureDetailed) {
+            const container = document.getElementById('functional_nature');
+            
             const natureColors = {
                 'Yogakaraka': '#28a745',
                 'Functional Benefic': '#4CAF50',
@@ -989,9 +1064,10 @@
                 'Depends on placement and associations': '🔄'
             };
             
-            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
+            let html = '<h4 style="margin: 20px 0 15px 0; color: #333;">📊 Detailed Planet-by-Planet Analysis</h4>';
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
             
-            for (const [planet, data] of Object.entries(functionalNature)) {
+            for (const [planet, data] of Object.entries(functionalNatureDetailed)) {
                 const color = natureColors[data.nature] || '#666';
                 const emoji = strengthEmojis[data.strength_impact] || '';
                 
@@ -1017,7 +1093,7 @@
             }
             
             html += '</div>';
-            container.innerHTML = html;
+            container.innerHTML += html;
         }
         
         function displayShadbala(shadbala) {

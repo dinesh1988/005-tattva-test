@@ -203,3 +203,60 @@ def get_ascendant_name(lagna_num: int) -> str:
     signs = ['', 'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
              'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
     return signs[lagna_num] if 1 <= lagna_num <= 12 else 'Unknown'
+
+
+def get_functional_nature_categorized(lagna_num: int) -> dict:
+    """
+    Get functional nature in categorized format (benefics, malefics, neutrals, yogakaraka).
+    This format is optimized for prediction algorithms.
+    
+    Args:
+        lagna_num: Ascendant sign number (1=Aries, 2=Taurus, ..., 12=Pisces)
+    
+    Returns:
+        Dictionary with categorized planet lists:
+        {
+            "benefics": ["Mars", "Sun"],
+            "malefics": ["Venus", "Saturn"],
+            "neutrals": ["Mercury", "Jupiter"],
+            "yogakaraka": "Mars"  # or null if none
+        }
+    """
+    detailed = get_functional_nature(lagna_num)
+    
+    benefics = []
+    malefics = []
+    neutrals = []
+    yogakaraka = None
+    
+    for planet, info in detailed.items():
+        nature = info['nature']
+        
+        # Skip shadow planets for main categories
+        if planet in ['Rahu', 'Ketu']:
+            neutrals.append(planet)
+            continue
+        
+        # Yogakaraka is the strongest benefic
+        if 'Yogakaraka' in nature:
+            yogakaraka = planet
+            benefics.append(planet)
+        # Functional Benefic
+        elif 'Functional Benefic' in nature:
+            benefics.append(planet)
+        # Functional Malefic
+        elif 'Functional Malefic' in nature or 'Malefic' in nature:
+            malefics.append(planet)
+        # Mixed or Neutral
+        elif 'Mixed' in nature or 'Neutral' in nature:
+            neutrals.append(planet)
+        else:
+            # Default to neutral if unclear
+            neutrals.append(planet)
+    
+    return {
+        'benefics': benefics,
+        'malefics': malefics,
+        'neutrals': neutrals,
+        'yogakaraka': yogakaraka
+    }

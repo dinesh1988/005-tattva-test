@@ -44,7 +44,7 @@ from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
 from logic.rasi import RASIS
 from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_points
-from logic.functional_nature import get_functional_nature
+from logic.functional_nature import get_functional_nature, get_functional_nature_categorized
 from logic.shadbala import get_shadbala_summary
 
 # Database imports
@@ -861,7 +861,8 @@ async def get_complete_profile(birth_data: BirthData):
     }
     
     # 8. FUNCTIONAL NATURE (Benefic/Malefic by Ascendant)
-    functional_nature = get_functional_nature(lagna_rasi_num)
+    functional_nature_detailed = get_functional_nature(lagna_rasi_num)
+    functional_nature = get_functional_nature_categorized(lagna_rasi_num)
     
     # 9. SHADBALA (Planetary Strength in Rupas)
     # Convert astro_time back to datetime for shadbala calculation
@@ -970,6 +971,7 @@ async def get_complete_profile(birth_data: BirthData):
         'numerology': numerology,
         'ashtakavarga': ashtakavarga,
         'functional_nature': functional_nature,
+        'functional_nature_detailed': functional_nature_detailed,
         'shadbala': shadbala,
         'prediction_framework': prediction_framework,
         'generated_at': datetime.now().isoformat(),
