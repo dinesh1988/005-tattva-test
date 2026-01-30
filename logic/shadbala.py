@@ -1059,6 +1059,32 @@ def get_bhava_bala(house: int, jd: float, lat: float, lon: float, ayanamsa: str 
     }
 
 
+def get_shadbala_ratios(dt: datetime, lat: float, lon: float, ayanamsa: str = 'LAHIRI') -> Dict[str, float]:
+    """
+    Get simple Shadbala strength ratios for all planets.
+    
+    Returns strength ratio (actual/required) for each planet.
+    Ratio > 1.0 = Strong, < 1.0 = Weak
+    
+    Example:
+        {
+            "Sun": 1.2,  # Strong (20% above required)
+            "Moon": 0.9, # Weak (10% below required)
+            "Mars": 1.5  # Very Strong (50% above required)
+        }
+    """
+    jd = datetime_to_jd(dt)
+    ratios = {}
+    
+    for planet in PLANETS:
+        shadbala = get_shadbala_pinda(planet, jd, lat, lon, ayanamsa)
+        # Calculate ratio: actual_rupas / required_rupas
+        ratio = shadbala['total_rupas'] / shadbala['required_rupas']
+        ratios[planet.lower()] = round(ratio, 2)
+    
+    return ratios
+
+
 def get_full_shadbala_report(dt: datetime, lat: float, lon: float, ayanamsa: str = 'LAHIRI') -> Dict[str, Any]:
     """
     Generate comprehensive Shadbala report.

@@ -45,7 +45,7 @@ from logic.daily_prediction import calculate_daily_prediction
 from logic.rasi import RASIS
 from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_points
 from logic.functional_nature import get_functional_nature, get_functional_nature_categorized
-from logic.shadbala import get_shadbala_summary
+from logic.shadbala import get_shadbala_summary, get_shadbala_ratios
 
 # Database imports
 from api.database import (
@@ -866,7 +866,8 @@ async def get_complete_profile(birth_data: BirthData):
     
     # 9. SHADBALA (Planetary Strength in Rupas)
     # Convert astro_time back to datetime for shadbala calculation
-    shadbala = get_shadbala_summary(birth_datetime_tz, lat, lon)
+    shadbala_detailed = get_shadbala_summary(birth_datetime_tz, lat, lon)
+    shadbala = get_shadbala_ratios(birth_datetime_tz, lat, lon)  # Simple ratios for predictions
     
     # 10. EXECUTIVE SUMMARY for LLMs
     active_yogas = [y['name'] for y in yogas_enhanced if y.get('present', False)]
@@ -972,7 +973,8 @@ async def get_complete_profile(birth_data: BirthData):
         'ashtakavarga': ashtakavarga,
         'functional_nature': functional_nature,
         'functional_nature_detailed': functional_nature_detailed,
-        'shadbala': shadbala,
+        'shadbala': shadbala,  # Simple ratios for prediction algorithms
+        'shadbala_detailed': shadbala_detailed,  # Detailed strength analysis
         'prediction_framework': prediction_framework,
         'generated_at': datetime.now().isoformat(),
         'llm_instructions': {
