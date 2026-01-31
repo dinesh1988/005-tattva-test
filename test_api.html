@@ -744,6 +744,7 @@
         
         function displayResult(result) {
             console.log('Received result:', result);
+            console.log('Available top-level keys:', Object.keys(result));
             
             // Executive Summary
             if (result.executive_summary) {
@@ -824,6 +825,11 @@
             
             // Dasa Schedule Display
             console.log('Checking for dasa_periods:', result.dasa_periods);
+            console.log('dasa_periods type:', typeof result.dasa_periods);
+            if (result.dasa_periods && typeof result.dasa_periods === 'object') {
+                console.log('dasa_periods keys:', Object.keys(result.dasa_periods));
+            }
+            
             if (result.dasa_periods) {
                 if (result.dasa_periods.full_schedule) {
                     console.log('Displaying dasa schedule with full_schedule:', result.dasa_periods);
@@ -834,11 +840,20 @@
                     displayDasaSchedule(result.dasa_periods, result.dasa_periods);
                 } else {
                     console.log('dasa_periods exists but structure not recognized:', result.dasa_periods);
-                    document.getElementById('current_dasa_highlight').innerHTML = '<p style="color: #f44336;">Dasa periods data format not recognized. Check console for details.</p>';
+                    document.getElementById('current_dasa_highlight').innerHTML = `
+                        <p style="color: #f44336;">Dasa periods data format not recognized.</p>
+                        <p style="color: #666; font-size: 12px; margin-top: 8px;">Available keys: ${Object.keys(result.dasa_periods || {}).join(', ')}</p>
+                        <p style="color: #666; font-size: 12px;">Check browser console for details.</p>
+                    `;
                 }
             } else {
                 console.log('No dasa_periods data found in result');
-                document.getElementById('current_dasa_highlight').innerHTML = '<p style="color: #666;">No Dasa periods data available from API.</p>';
+                console.log('Available data keys:', Object.keys(result));
+                document.getElementById('current_dasa_highlight').innerHTML = `
+                    <p style="color: #666;">No Dasa periods data available from API.</p>
+                    <p style="color: #666; font-size: 12px; margin-top: 8px;">The API response did not include dasa_periods.</p>
+                    <p style="color: #666; font-size: 12px;">Available data: ${Object.keys(result).join(', ')}</p>
+                `;
             }
             
             // Functional Nature Display
