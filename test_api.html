@@ -525,88 +525,132 @@
         };
         
         function loadSavedProfilesList() {
-            const select = document.getElementById('savedProfiles');
-            select.innerHTML = '<option value="">-- Select a saved profile --</option>';
-            
-            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
-            
-            if (profiles && typeof profiles === 'object') {
-                Object.keys(profiles).forEach(key => {
-                    const option = document.createElement('option');
-                    option.value = key;
-                    option.textContent = `${key}: ${profiles[key].name}`;
-                    select.appendChild(option);
-                });
+            try {
+                const select = document.getElementById('savedProfiles');
+                if (!select) {
+                    console.error('savedProfiles select element not found');
+                    return;
+                }
+                
+                select.innerHTML = '<option value="">-- Select a saved profile --</option>';
+                
+                const profilesJson = localStorage.getItem('astroProfiles') || '{}';
+                console.log('Loading profiles from localStorage:', profilesJson);
+                
+                const profiles = JSON.parse(profilesJson);
+                
+                if (profiles && typeof profiles === 'object') {
+                    const keys = Object.keys(profiles);
+                    console.log(`Found ${keys.length} saved profiles:`, keys);
+                    
+                    keys.forEach(key => {
+                        const profile = profiles[key];
+                        if (profile && profile.name) {
+                            const option = document.createElement('option');
+                            option.value = key;
+                            option.textContent = `${key}: ${profile.name}`;
+                            select.appendChild(option);
+                        } else {
+                            console.warn(`Profile "${key}" has invalid data:`, profile);
+                        }
+                    });
+                } else {
+                    console.log('No profiles found or invalid data');
+                }
+            } catch (error) {
+                console.error('Error loading profiles:', error);
+                alert('Error loading saved profiles: ' + error.message);
             }
         }
         
         function saveProfile() {
-            const name = document.getElementById('name').value;
-            const birth_date = document.getElementById('birth_date').value;
-            const birth_time = document.getElementById('birth_time').value;
-            const birth_place = document.getElementById('birth_place').value;
-            
-            if (!name || !birth_date || !birth_time || !birth_place) {
-                alert('Please fill all fields before saving!');
-                return;
+            try {
+                const name = document.getElementById('name').value;
+                const birth_date = document.getElementById('birth_date').value;
+                const birth_time = document.getElementById('birth_time').value;
+                const birth_place = document.getElementById('birth_place').value;
+                
+                if (!name || !birth_date || !birth_time || !birth_place) {
+                    alert('Please fill all fields before saving!');
+                    return;
+                }
+                
+                const profileName = prompt('Enter profile name (e.g., Profile 1, Mom, Dad):', 'Profile 1');
+                if (!profileName) return;
+                
+                const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+                profiles[profileName] = {
+                    name: name,
+                    birth_date: birth_date,
+                    birth_time: birth_time,
+                    birth_place: birth_place,
+                    saved_at: new Date().toISOString()
+                };
+                
+                console.log('Saving profile:', profileName, profiles[profileName]);
+                localStorage.setItem('astroProfiles', JSON.stringify(profiles));
+                loadSavedProfilesList();
+                alert(`Profile "${profileName}" saved successfully!`);
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                alert('Error saving profile: ' + error.message);
             }
-            
-            const profileName = prompt('Enter profile name (e.g., Profile 1, Mom, Dad):', 'Profile 1');
-            if (!profileName) return;
-            
-            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
-            profiles[profileName] = {
-                name: name,
-                birth_date: birth_date,
-                birth_time: birth_time,
-                birth_place: birth_place,
-                saved_at: new Date().toISOString()
-            };
-            
-            localStorage.setItem('astroProfiles', JSON.stringify(profiles));
-            loadSavedProfilesList();
-            alert(`Profile "${profileName}" saved successfully!`);
         }
         
         function loadProfile() {
-            const select = document.getElementById('savedProfiles');
-            const profileName = select.value;
-            
-            if (!profileName) {
-                alert('Please select a profile to load!');
-                return;
-            }
-            
-            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
-            const profile = profiles[profileName];
-            
-            if (profile) {
-                document.getElementById('name').value = profile.name;
-                document.getElementById('birth_date').value = profile.birth_date;
-                document.getElementById('birth_time').value = profile.birth_time;
-                document.getElementById('birth_place').value = profile.birth_place;
-                alert(`Profile "${profileName}" loaded!`);
+            try {
+                const select = document.getElementById('savedProfiles');
+                const profileName = select.value;
+                
+                if (!profileName) {
+                    alert('Please select a profile to load!');
+                    return;
+                }
+                
+                const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+                const profile = profiles[profileName];
+                
+                console.log('Loading profile:', profileName, profile);
+                
+                if (profile) {
+                    if (profile.name) document.getElementById('name').value = profile.name;
+                    if (profile.birth_date) document.getElementById('birth_date').value = profile.birth_date;
+                    if (profile.birth_time) document.getElementById('birth_time').value = profile.birth_time;
+                    if (profile.birth_place) document.getElementById('birth_place').value = profile.birth_place;
+                    alert(`Profile "${profileName}" loaded!`);
+                } else {
+                    alert(`Profile "${profileName}" not found!`);
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+                alert('Error loading profile: ' + error.message);
             }
         }
         
         function deleteProfile() {
-            const select = document.getElementById('savedProfiles');
-            const profileName = select.value;
-            
-            if (!profileName) {
-                alert('Please select a profile to delete!');
-                return;
+            try {
+                const select = document.getElementById('savedProfiles');
+                const profileName = select.value;
+                
+                if (!profileName) {
+                    alert('Please select a profile to delete!');
+                    return;
+                }
+                
+                if (!confirm(`Are you sure you want to delete "${profileName}"?`)) {
+                    return;
+                }
+                
+                const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+                console.log('Deleting profile:', profileName);
+                delete profiles[profileName];
+                localStorage.setItem('astroProfiles', JSON.stringify(profiles));
+                loadSavedProfilesList();
+                alert(`Profile "${profileName}" deleted!`);
+            } catch (error) {
+                console.error('Error deleting profile:', error);
+                alert('Error deleting profile: ' + error.message);
             }
-            
-            if (!confirm(`Are you sure you want to delete "${profileName}"?`)) {
-                return;
-            }
-            
-            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
-            delete profiles[profileName];
-            localStorage.setItem('astroProfiles', JSON.stringify(profiles));
-            loadSavedProfilesList();
-            alert(`Profile "${profileName}" deleted!`);
         }
         
         function fillExample() {
