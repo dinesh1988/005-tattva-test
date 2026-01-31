@@ -759,11 +759,22 @@
             }
             
             // Dasa Schedule Display
-            if (result.dasa_periods && result.dasa_periods.full_schedule) {
-                console.log('Displaying dasa schedule:', result.dasa_periods);
-                displayDasaSchedule(result.dasa_periods.full_schedule, result.dasa_periods);
+            console.log('Checking for dasa_periods:', result.dasa_periods);
+            if (result.dasa_periods) {
+                if (result.dasa_periods.full_schedule) {
+                    console.log('Displaying dasa schedule with full_schedule:', result.dasa_periods);
+                    displayDasaSchedule(result.dasa_periods.full_schedule, result.dasa_periods);
+                } else if (result.dasa_periods.maha_dasas) {
+                    // If the API returns maha_dasas directly
+                    console.log('Displaying dasa schedule directly from dasa_periods:', result.dasa_periods);
+                    displayDasaSchedule(result.dasa_periods, result.dasa_periods);
+                } else {
+                    console.log('dasa_periods exists but structure not recognized:', result.dasa_periods);
+                    document.getElementById('current_dasa_highlight').innerHTML = '<p style="color: #f44336;">Dasa periods data format not recognized. Check console for details.</p>';
+                }
             } else {
                 console.log('No dasa_periods data found in result');
+                document.getElementById('current_dasa_highlight').innerHTML = '<p style="color: #666;">No Dasa periods data available from API.</p>';
             }
             
             // Functional Nature Display
@@ -896,8 +907,23 @@
         function displayDasaSchedule(schedule, currentDasa) {
             console.log('displayDasaSchedule called with:', { schedule, currentDasa });
             
-            if (!schedule || !schedule.maha_dasas || !Array.isArray(schedule.maha_dasas)) {
-                console.error('Invalid schedule data');
+            const timeline = document.getElementById('dasa_timeline');
+            const currentHighlight = document.getElementById('current_dasa_highlight');
+            
+            if (!timeline) {
+                console.error('Timeline element not found');
+                return;
+            }
+            
+            if (!schedule) {
+                console.error('No schedule data provided');
+                timeline.innerHTML = '<p style="color: #f44336;">No schedule data available.</p>';
+                return;
+            }
+            
+            if (!schedule.maha_dasas || !Array.isArray(schedule.maha_dasas)) {
+                console.error('Invalid schedule data - maha_dasas missing or not an array:', schedule);
+                timeline.innerHTML = '<p style="color: #f44336;">Schedule data format is invalid. maha_dasas is missing or not an array.</p>';
                 return;
             }
             
@@ -925,10 +951,14 @@
                         ${currentDasa.prediction_note || ''}
                     </div>
                 `;
+            } else {
+                console.log('Current dasa data incomplete or missing');
+                if (currentHighlight) {
+                    currentHighlight.innerHTML = '<p style="color: #666;">Current period information not available.</p>';
+                }
             }
             
             // Full Timeline
-            const timeline = document.getElementById('dasa_timeline');
             timeline.innerHTML = '';
             
             const timelineInfo = document.createElement('div');
@@ -999,6 +1029,10 @@
                 dasaCard.appendChild(bhuktisContainer);
                 timeline.appendChild(dasaCard);
                 });
+                console.log(`Displayed ${schedule.maha_dasas.length} Maha Dasas`);
+            } else {
+                console.log('maha_dasas array is missing or empty');
+                timeline.innerHTML += '<p style="color: #f44336;">No Maha Dasa data available.</p>';
             }
             
             console.log('Dasa schedule display complete');
