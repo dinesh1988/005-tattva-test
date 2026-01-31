@@ -1168,8 +1168,21 @@
         }
         
         function displayShadbala(shadbala) {
+            console.log('displayShadbala called with:', shadbala);
+            
             const container = document.getElementById('shadbala');
+            if (!container) {
+                console.error('Shadbala container not found');
+                return;
+            }
+            
             container.innerHTML = '';
+            
+            if (!shadbala || typeof shadbala !== 'object') {
+                console.error('Invalid shadbala data');
+                container.innerHTML = '<p style="color: #f44336;">Shadbala data not available.</p>';
+                return;
+            }
             
             // Summary section
             let html = `
@@ -1177,15 +1190,15 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 10px;">
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Strongest</div>
-                            <div style="font-size: 18px; font-weight: 600; color: #28a745;">${shadbala.strongest_planet}</div>
+                            <div style="font-size: 18px; font-weight: 600; color: #28a745;">${shadbala.strongest_planet || 'N/A'}</div>
                         </div>
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Weakest</div>
-                            <div style="font-size: 18px; font-weight: 600; color: #f44336;">${shadbala.weakest_planet}</div>
+                            <div style="font-size: 18px; font-weight: 600; color: #f44336;">${shadbala.weakest_planet || 'N/A'}</div>
                         </div>
                         <div>
                             <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Average Strength</div>
-                            <div style="font-size: 18px; font-weight: 600; color: #667eea;">${shadbala.average_rupas} Rupas</div>
+                            <div style="font-size: 18px; font-weight: 600; color: #667eea;">${shadbala.average_rupas ? shadbala.average_rupas.toFixed(2) : 'N/A'} Rupas</div>
                         </div>
                     </div>
                     <div style="font-size: 13px; color: #666;">
@@ -1203,49 +1216,55 @@
             
             if (shadbala.planets && typeof shadbala.planets === 'object') {
                 for (const [planet, data] of Object.entries(shadbala.planets)) {
-                const percentage = data.strength_ratio;
-                const barColor = data.is_strong ? '#28a745' : '#f44336';
-                const statusIcon = data.is_strong ? '✓' : '✗';
-                const statusText = data.is_strong ? 'Strong' : 'Weak';
-                
-                html += `
-                    <div style="border: 2px solid ${barColor}; border-radius: 8px; padding: 15px; background: white;">
-                        <div style="font-weight: 600; font-size: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
-                            <span>${planet}</span>
-                            <span style="font-size: 14px; color: ${barColor};">${statusIcon} ${statusText}</span>
+                    if (!data) continue;
+                    
+                    const percentage = data.strength_ratio || 0;
+                    const barColor = data.is_strong ? '#28a745' : '#f44336';
+                    const statusIcon = data.is_strong ? '✓' : '✗';
+                    const statusText = data.is_strong ? 'Strong' : 'Weak';
+                    
+                    html += `
+                        <div style="border: 2px solid ${barColor}; border-radius: 8px; padding: 15px; background: white;">
+                            <div style="font-weight: 600; font-size: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                                <span>${planet}</span>
+                                <span style="font-size: 14px; color: ${barColor};">${statusIcon} ${statusText}</span>
+                            </div>
+                            
+                            <div style="margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #666; margin-bottom: 4px;">
+                                    <span>Total</span>
+                                    <span><strong>${data.total_rupas ? data.total_rupas.toFixed(2) : 'N/A'}</strong> / ${data.required_rupas ? data.required_rupas.toFixed(2) : 'N/A'} Rupas</span>
+                                </div>
+                                <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
+                                    <div style="width: ${Math.min(100, percentage)}%; height: 100%; background: ${barColor}; transition: width 0.3s;"></div>
+                                </div>
+                                <div style="text-align: center; font-size: 12px; color: #666; margin-top: 4px;">
+                                    ${percentage ? percentage.toFixed(1) : '0'}% of required
+                                </div>
+                            </div>
+                            
+                            <details style="font-size: 12px; color: #666;">
+                                <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">View Components</summary>
+                                <div style="padding-left: 15px; margin-top: 8px;">
+                                    <div>• Sthana Bala: ${data.sthana_bala ? data.sthana_bala.toFixed(2) : 'N/A'}</div>
+                                    <div>• Dig Bala: ${data.dig_bala ? data.dig_bala.toFixed(2) : 'N/A'}</div>
+                                    <div>• Kaala Bala: ${data.kaala_bala ? data.kaala_bala.toFixed(2) : 'N/A'}</div>
+                                    <div>• Cheshta Bala: ${data.chesta_bala ? data.chesta_bala.toFixed(2) : 'N/A'}</div>
+                                    <div>• Naisargika Bala: ${data.naisargika_bala ? data.naisargika_bala.toFixed(2) : 'N/A'}</div>
+                                    <div>• Drik Bala: ${data.drik_bala ? data.drik_bala.toFixed(2) : 'N/A'}</div>
+                                </div>
+                            </details>
                         </div>
-                        
-                        <div style="margin-bottom: 12px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #666; margin-bottom: 4px;">
-                                <span>Total</span>
-                                <span><strong>${data.total_rupas.toFixed(2)}</strong> / ${data.required_rupas.toFixed(2)} Rupas</span>
-                            </div>
-                            <div style="background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden;">
-                                <div style="width: ${Math.min(100, percentage)}%; height: 100%; background: ${barColor}; transition: width 0.3s;"></div>
-                            </div>
-                            <div style="text-align: center; font-size: 12px; color: #666; margin-top: 4px;">
-                                ${percentage.toFixed(1)}% of required
-                            </div>
-                        </div>
-                        
-                        <details style="font-size: 12px; color: #666;">
-                            <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">View Components</summary>
-                            <div style="padding-left: 15px; margin-top: 8px;">
-                                <div>• Sthana Bala: ${data.sthana_bala.toFixed(2)}</div>
-                                <div>• Dig Bala: ${data.dig_bala.toFixed(2)}</div>
-                                <div>• Kaala Bala: ${data.kaala_bala.toFixed(2)}</div>
-                                <div>• Cheshta Bala: ${data.chesta_bala.toFixed(2)}</div>
-                                <div>• Naisargika Bala: ${data.naisargika_bala.toFixed(2)}</div>
-                                <div>• Drik Bala: ${data.drik_bala.toFixed(2)}</div>
-                            </div>
-                        </details>
-                    </div>
-                `;
+                    `;
                 }
+            } else {
+                console.log('No planets data in shadbala');
+                html += '<p style="color: #666;">No individual planet strength data available.</p>';
             }
             
             html += '</div>';
             container.innerHTML = html;
+            console.log('Shadbala display complete');
         }
         
         function showChart(chartType) {
