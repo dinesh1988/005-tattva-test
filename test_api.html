@@ -679,66 +679,78 @@
         });
         
         function displayResult(result) {
+            console.log('Received result:', result);
+            
             // Executive Summary
-            document.getElementById('personality').textContent = result.executive_summary.personality_overview;
-            document.getElementById('yogas_count').textContent = result.executive_summary.active_yogas_count;
-            document.getElementById('dasa_planet').textContent = result.executive_summary.current_dasa_planet;
-            document.getElementById('life_stage').textContent = result.executive_summary.life_stage;
+            if (result.executive_summary) {
+                document.getElementById('personality').textContent = result.executive_summary.personality_overview || 'N/A';
+                document.getElementById('yogas_count').textContent = result.executive_summary.active_yogas_count || '0';
+                document.getElementById('dasa_planet').textContent = result.executive_summary.current_dasa_planet || 'N/A';
+                document.getElementById('life_stage').textContent = result.executive_summary.life_stage || 'N/A';
+            }
             
             // Birth Chart
-            document.getElementById('lagna').textContent = result.birth_chart.lagna.rasi;
-            document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.longitude ? result.birth_chart.lagna.longitude.toFixed(2) : 'N/A';
-            
-            const sunPlanet = result.birth_chart.planets.find(p => p.planet === 'Sun');
-            const moonPlanet = result.birth_chart.planets.find(p => p.planet === 'Moon');
-            
-            document.getElementById('sun_sign').textContent = sunPlanet ? sunPlanet.rasi : 'N/A';
-            document.getElementById('sun_nakshatra').textContent = sunPlanet ? sunPlanet.nakshatra : 'N/A';
-            
-            document.getElementById('moon_sign').textContent = moonPlanet ? moonPlanet.rasi : 'N/A';
-            document.getElementById('moon_nakshatra').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
-            document.getElementById('moon_nakshatra_detail').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
-            document.getElementById('moon_pada').textContent = moonPlanet ? moonPlanet.pada : 'N/A';
-            
-            // Display all divisional charts
-            displayHouseChart(result.birth_chart, 'd1');
-            displayHouseChart(result.birth_chart, 'd2');
-            displayHouseChart(result.birth_chart, 'd3');
-            displayHouseChart(result.birth_chart, 'd4');
-            displayHouseChart(result.birth_chart, 'd5');
-            displayHouseChart(result.birth_chart, 'd6');
-            displayHouseChart(result.birth_chart, 'd7');
-            displayHouseChart(result.birth_chart, 'd8');
-            displayHouseChart(result.birth_chart, 'd9');
-            displayHouseChart(result.birth_chart, 'd10');
-            displayHouseChart(result.birth_chart, 'd11');
-            displayHouseChart(result.birth_chart, 'd12');
-            displayHouseChart(result.birth_chart, 'd16');
-            displayHouseChart(result.birth_chart, 'd20');
-            displayHouseChart(result.birth_chart, 'd24');
-            displayHouseChart(result.birth_chart, 'd27');
-            displayHouseChart(result.birth_chart, 'd30');
-            displayHouseChart(result.birth_chart, 'd40');
-            displayHouseChart(result.birth_chart, 'd45');
-            displayHouseChart(result.birth_chart, 'd60');
+            if (result.birth_chart) {
+                if (result.birth_chart.lagna) {
+                    document.getElementById('lagna').textContent = result.birth_chart.lagna.rasi || 'N/A';
+                    document.getElementById('lagna_degree').textContent = result.birth_chart.lagna.longitude ? result.birth_chart.lagna.longitude.toFixed(2) : 'N/A';
+                }
+                
+                if (result.birth_chart.planets && Array.isArray(result.birth_chart.planets)) {
+                    const sunPlanet = result.birth_chart.planets.find(p => p.planet === 'Sun');
+                    const moonPlanet = result.birth_chart.planets.find(p => p.planet === 'Moon');
+                    
+                    document.getElementById('sun_sign').textContent = sunPlanet ? sunPlanet.rasi : 'N/A';
+                    document.getElementById('sun_nakshatra').textContent = sunPlanet ? sunPlanet.nakshatra : 'N/A';
+                    
+                    document.getElementById('moon_sign').textContent = moonPlanet ? moonPlanet.rasi : 'N/A';
+                    document.getElementById('moon_nakshatra').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
+                    document.getElementById('moon_nakshatra_detail').textContent = moonPlanet ? moonPlanet.nakshatra : 'N/A';
+                    document.getElementById('moon_pada').textContent = moonPlanet ? moonPlanet.pada : 'N/A';
+                }
+                
+                // Display all divisional charts
+                displayHouseChart(result.birth_chart, 'd1');
+                displayHouseChart(result.birth_chart, 'd2');
+                displayHouseChart(result.birth_chart, 'd3');
+                displayHouseChart(result.birth_chart, 'd4');
+                displayHouseChart(result.birth_chart, 'd5');
+                displayHouseChart(result.birth_chart, 'd6');
+                displayHouseChart(result.birth_chart, 'd7');
+                displayHouseChart(result.birth_chart, 'd8');
+                displayHouseChart(result.birth_chart, 'd9');
+                displayHouseChart(result.birth_chart, 'd10');
+                displayHouseChart(result.birth_chart, 'd11');
+                displayHouseChart(result.birth_chart, 'd12');
+                displayHouseChart(result.birth_chart, 'd16');
+                displayHouseChart(result.birth_chart, 'd20');
+                displayHouseChart(result.birth_chart, 'd24');
+                displayHouseChart(result.birth_chart, 'd27');
+                displayHouseChart(result.birth_chart, 'd30');
+                displayHouseChart(result.birth_chart, 'd40');
+                displayHouseChart(result.birth_chart, 'd45');
+                displayHouseChart(result.birth_chart, 'd60');
+            }
             
             // Active Yogas
-            const activeYogas = result.yogas.filter(y => y.present);
-            const yogaList = document.getElementById('yoga_list');
-            yogaList.innerHTML = '';
-            
-            activeYogas.slice(0, 5).forEach(yoga => {
-                const li = document.createElement('li');
-                li.className = 'yoga-item';
-                li.innerHTML = `
-                    <span class="yoga-name">${yoga.name}</span> (${yoga.nature})
-                    <br><small>${yoga.description}</small>
-                `;
-                yogaList.appendChild(li);
-            });
-            
-            if (activeYogas.length === 0) {
-                yogaList.innerHTML = '<li class="yoga-item">No active yogas found</li>';
+            if (result.yogas && Array.isArray(result.yogas)) {
+                const activeYogas = result.yogas.filter(y => y.present);
+                const yogaList = document.getElementById('yoga_list');
+                yogaList.innerHTML = '';
+                
+                activeYogas.slice(0, 5).forEach(yoga => {
+                    const li = document.createElement('li');
+                    li.className = 'yoga-item';
+                    li.innerHTML = `
+                        <span class="yoga-name">${yoga.name}</span> (${yoga.nature})
+                        <br><small>${yoga.description}</small>
+                    `;
+                    yogaList.appendChild(li);
+                });
+                
+                if (activeYogas.length === 0) {
+                    yogaList.innerHTML = '<li class="yoga-item">No active yogas found</li>';
+                }
             }
             
             // Ashtakavarga Display
@@ -753,14 +765,17 @@
             
             // Functional Nature Display
             if (result.functional_nature) {
+                console.log('Displaying functional nature:', result.functional_nature);
                 displayFunctionalNature(result.functional_nature);
                 if (result.functional_nature_detailed) {
+                    console.log('Displaying detailed functional nature:', result.functional_nature_detailed);
                     displayFunctionalNatureDetailed(result.functional_nature_detailed);
                 }
             }
             
             // Shadbala Display
             if (result.shadbala) {
+                console.log('Displaying shadbala:', result.shadbala);
                 displayShadbala(result.shadbala);
             }
             
