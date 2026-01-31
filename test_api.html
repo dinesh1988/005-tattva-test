@@ -654,10 +654,30 @@
         }
         
         function fillExample() {
-            document.getElementById('name').value = 'John Doe';
-            document.getElementById('birth_date').value = '1990-05-15';
-            document.getElementById('birth_time').value = '14:30';
-            document.getElementById('birth_place').value = 'Mumbai';
+            try {
+                console.log('Filling example data...');
+                
+                const nameField = document.getElementById('name');
+                const dateField = document.getElementById('birth_date');
+                const timeField = document.getElementById('birth_time');
+                const placeField = document.getElementById('birth_place');
+                
+                if (!nameField || !dateField || !timeField || !placeField) {
+                    console.error('One or more form fields not found');
+                    alert('Error: Form fields not found');
+                    return;
+                }
+                
+                nameField.value = 'John Doe';
+                dateField.value = '1990-05-15';
+                timeField.value = '14:30';
+                placeField.value = 'Mumbai';
+                
+                console.log('Example data filled successfully');
+            } catch (error) {
+                console.error('Error filling example data:', error);
+                alert('Error filling example data: ' + error.message);
+            }
         }
         
         function copyJsonToClipboard() {
