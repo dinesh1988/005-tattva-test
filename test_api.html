@@ -774,9 +774,9 @@
                     <strong>Destiny Number:</strong> ${destinyNum.number || 'N/A'} (${destinyNum.planet || 'N/A'})<br>
                     <strong>Meaning:</strong> ${destinyNum.meaning || 'N/A'}<br>
                     <strong>Name Number:</strong> ${nameNum.number || 'N/A'} (Root: ${nameNum.root || 'N/A'}, Planet: ${nameNum.planet || 'N/A'})<br>
-                    ${result.numerology.lucky_numbers ? `<strong>Lucky Numbers:</strong> ${result.numerology.lucky_numbers.join(', ')}<br>` : ''}
-                    ${result.numerology.lucky_days ? `<strong>Lucky Days:</strong> ${result.numerology.lucky_days.join(', ')}<br>` : ''}
-                    ${result.numerology.lucky_colors ? `<strong>Lucky Colors:</strong> ${result.numerology.lucky_colors.join(', ')}` : ''}
+                    ${result.numerology.lucky_numbers && Array.isArray(result.numerology.lucky_numbers) ? `<strong>Lucky Numbers:</strong> ${result.numerology.lucky_numbers.join(', ')}<br>` : ''}
+                    ${result.numerology.lucky_days && Array.isArray(result.numerology.lucky_days) ? `<strong>Lucky Days:</strong> ${result.numerology.lucky_days.join(', ')}<br>` : ''}
+                    ${result.numerology.lucky_colors && Array.isArray(result.numerology.lucky_colors) ? `<strong>Lucky Colors:</strong> ${result.numerology.lucky_colors.join(', ')}` : ''}
                 `;
             }
             
@@ -998,7 +998,7 @@
                                 ✅ BENEFICS (Luck Bringers)
                             </div>
                             <div style="font-size: 14px; color: #333;">
-                                ${functionalNature.benefics.join(', ') || 'None'}
+                                ${functionalNature.benefics && Array.isArray(functionalNature.benefics) && functionalNature.benefics.length > 0 ? functionalNature.benefics.join(', ') : 'None'}
                             </div>
                             <div style="font-size: 12px; color: #666; margin-top: 5px;">
                                 Bring opportunities & fortune
@@ -1011,7 +1011,7 @@
                                 ⚠️ MALEFICS (Trouble Makers)
                             </div>
                             <div style="font-size: 14px; color: #333;">
-                                ${functionalNature.malefics.join(', ') || 'None'}
+                                ${functionalNature.malefics && Array.isArray(functionalNature.malefics) && functionalNature.malefics.length > 0 ? functionalNature.malefics.join(', ') : 'None'}
                             </div>
                             <div style="font-size: 12px; color: #666; margin-top: 5px;">
                                 Cause challenges & obstacles
@@ -1024,7 +1024,7 @@
                                 ⚖️ NEUTRALS (Mixed Results)
                             </div>
                             <div style="font-size: 14px; color: #333;">
-                                ${functionalNature.neutrals.join(', ') || 'None'}
+                                ${functionalNature.neutrals && Array.isArray(functionalNature.neutrals) && functionalNature.neutrals.length > 0 ? functionalNature.neutrals.join(', ') : 'None'}
                             </div>
                             <div style="font-size: 12px; color: #666; margin-top: 5px;">
                                 Context-dependent results
@@ -1033,8 +1033,8 @@
                         
                     </div>
                     <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-                        <strong>💡 Prediction Tip:</strong> During Dasa/Bhukti of <strong style="color: #28a745;">${functionalNature.benefics.join(' or ')}</strong>, expect positive results. 
-                        During <strong style="color: #f44336;">${functionalNature.malefics.join(' or ')}</strong> periods, be cautious and proactive.
+                        <strong>💡 Prediction Tip:</strong> During Dasa/Bhukti of <strong style="color: #28a745;">${functionalNature.benefics && Array.isArray(functionalNature.benefics) && functionalNature.benefics.length > 0 ? functionalNature.benefics.join(' or ') : 'benefic planets'}</strong>, expect positive results. 
+                        During <strong style="color: #f44336;">${functionalNature.malefics && Array.isArray(functionalNature.malefics) && functionalNature.malefics.length > 0 ? functionalNature.malefics.join(' or ') : 'malefic planets'}</strong> periods, be cautious and proactive.
                     </div>
                 </div>
             `;
@@ -1080,7 +1080,7 @@
                             ${data.nature}
                         </div>
                         <div style="font-size: 13px; color: #666; margin-bottom: 6px;">
-                            <strong>Houses Ruled:</strong> ${data.houses_ruled.length > 0 ? data.houses_ruled.join(', ') : 'None (Shadow planet)'}
+                            <strong>Houses Ruled:</strong> ${data.houses_ruled && Array.isArray(data.houses_ruled) && data.houses_ruled.length > 0 ? data.houses_ruled.join(', ') : 'None (Shadow planet)'}
                         </div>
                         <div style="font-size: 12px; color: #666; margin-bottom: 6px; font-style: italic;">
                             ${data.reason}
@@ -1118,11 +1118,11 @@
                         </div>
                     </div>
                     <div style="font-size: 13px; color: #666;">
-                        <strong>Ranking:</strong> ${shadbala.ranking.join(' → ')}
+                        <strong>Ranking:</strong> ${shadbala.ranking && Array.isArray(shadbala.ranking) ? shadbala.ranking.join(' → ') : 'N/A'}
                     </div>
                     <div style="font-size: 13px; color: #666; margin-top: 8px;">
-                        <strong>Strong Planets:</strong> ${shadbala.strong_planets.length > 0 ? shadbala.strong_planets.join(', ') : 'None'}<br>
-                        <strong>Weak Planets:</strong> ${shadbala.weak_planets.length > 0 ? shadbala.weak_planets.join(', ') : 'None'}
+                        <strong>Strong Planets:</strong> ${shadbala.strong_planets && Array.isArray(shadbala.strong_planets) && shadbala.strong_planets.length > 0 ? shadbala.strong_planets.join(', ') : 'None'}<br>
+                        <strong>Weak Planets:</strong> ${shadbala.weak_planets && Array.isArray(shadbala.weak_planets) && shadbala.weak_planets.length > 0 ? shadbala.weak_planets.join(', ') : 'None'}
                     </div>
                 </div>
             `;
