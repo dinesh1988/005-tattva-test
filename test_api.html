@@ -530,12 +530,14 @@
             
             const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
             
-            Object.keys(profiles).forEach(key => {
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = `${key}: ${profiles[key].name}`;
-                select.appendChild(option);
-            });
+            if (profiles && typeof profiles === 'object') {
+                Object.keys(profiles).forEach(key => {
+                    const option = document.createElement('option');
+                    option.value = key;
+                    option.textContent = `${key}: ${profiles[key].name}`;
+                    select.appendChild(option);
+                });
+            }
         }
         
         function saveProfile() {
@@ -1067,7 +1069,8 @@
             let html = '<h4 style="margin: 20px 0 15px 0; color: #333;">📊 Detailed Planet-by-Planet Analysis</h4>';
             html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
             
-            for (const [planet, data] of Object.entries(functionalNatureDetailed)) {
+            if (functionalNatureDetailed && typeof functionalNatureDetailed === 'object') {
+                for (const [planet, data] of Object.entries(functionalNatureDetailed)) {
                 const color = natureColors[data.nature] || '#666';
                 const emoji = strengthEmojis[data.strength_impact] || '';
                 
@@ -1090,6 +1093,7 @@
                         </div>
                     </div>
                 `;
+                }
             }
             
             html += '</div>';
@@ -1130,7 +1134,8 @@
             // Individual planet strength
             html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px;">';
             
-            for (const [planet, data] of Object.entries(shadbala.planets)) {
+            if (shadbala.planets && typeof shadbala.planets === 'object') {
+                for (const [planet, data] of Object.entries(shadbala.planets)) {
                 const percentage = data.strength_ratio;
                 const barColor = data.is_strong ? '#28a745' : '#f44336';
                 const statusIcon = data.is_strong ? '✓' : '✗';
@@ -1169,6 +1174,7 @@
                         </details>
                     </div>
                 `;
+                }
             }
             
             html += '</div>';
