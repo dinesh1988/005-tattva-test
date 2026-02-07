@@ -15,11 +15,16 @@ from dotenv import load_dotenv
 vedastro_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(vedastro_dir, '.env'))
 
+API_VERSION_DEFAULT = "0.6.0"
+APP_VERSION = os.getenv("VERSION", API_VERSION_DEFAULT)
+BUILD_ID = os.getenv("BUILD_ID")
+ENVIRONMENT = os.getenv("ENVIRONMENT")
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 
 # Add parent directory to path for imports
@@ -36,16 +41,18 @@ from logic.geolocation import get_location, get_coordinates
 from logic.calculate import get_planet_longitude, get_lagnam
 from logic.time import AstroTime
 from logic.consts import Planet
-from logic.panchang import get_tithi, get_yoga, get_nitya_yoga_details
+from logic.panchang import get_tithi, get_yoga, get_nitya_yoga_details, get_karana
 from logic.nakshatra import get_nakshatra, get_tara_bala, NAKSHATRAS
+from logic.sunrise import get_sun_times
 from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_full, get_vimshottari_dasa_schedule
 from logic.varga import get_all_vargas
 from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
-from logic.rasi import RASIS
+from logic.rasi import RASIS, get_rasi, get_gochara_house
 from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_points
 from logic.functional_nature import get_functional_nature, get_functional_nature_categorized
 from logic.shadbala import get_shadbala_summary, get_shadbala_ratios
+from logic.vedha import calculate_vedha_status
 
 # Database imports
 from api.database import (
@@ -90,6 +97,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _parse_local_datetime(date_str: str, time_str: str, tz_name: str) -> datetime:
+    import pytz
+
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid timezone '{tz_name}': {e}")
+
+    try:
+        date_parts = date_str.split("-")
+        time_parts = time_str.split(":")
+
+        year = int(date_parts[0])
+        month = int(date_parts[1])
+        day = int(date_parts[2])
+        hour = int(time_parts[0])
+        minute = int(time_parts[1])
+        second = int(time_parts[2]) if len(time_parts) > 2 and time_parts[2] else 0
+
+        naive_dt = datetime(year, month, day, hour, minute, second)
+        return tz.localize(naive_dt)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {e}")
 
 
 # =============================================================================
@@ -226,6 +260,58 @@ class DailyPredictionResponse(BaseModel):
     overall_prediction: str
 
 
+class GocharaPanchangRequest(BaseModel):
+    """Request for daily sky state + timing tables."""
+
+    place: Optional[str] = Field(None, description="City name (used if lat/lon not provided)", example="Chennai")
+    latitude: Optional[float] = Field(None, description="Latitude override")
+    longitude: Optional[float] = Field(None, description="Longitude override")
+    timezone: Optional[str] = Field(None, description="IANA timezone name", example="Asia/Kolkata")
+
+    date: Optional[str] = Field(None, description="Local date YYYY-MM-DD (defaults to today)")
+    time: Optional[str] = Field(None, description="Local time HH:MM[:SS] (defaults to now)")
+
+    natal_nakshatra: str = Field(
+        "Purva Bhadrapada",
+        description="Natal nakshatra name for Tara Bala baseline",
+        example="Purva Bhadrapada",
+    )
+
+
+class DailyFiveStepRequest(BaseModel):
+    """Request for the 5-step daily workflow.
+
+    This endpoint uses:
+      - Current location for sunrise/vara lord and current transits
+      - Birth data for natal Moon and Ashtakavarga (BAV)
+    """
+
+    # Birth data (for natal baseline)
+    birth_date: str = Field(..., description="Birth date (YYYY-MM-DD)", example="1988-06-07")
+    birth_time: str = Field(..., description="Birth time (HH:MM[:SS])", example="20:40")
+    birth_place: Optional[str] = Field(None, description="Birth city name")
+    birth_latitude: Optional[float] = Field(None, description="Birth latitude override")
+    birth_longitude: Optional[float] = Field(None, description="Birth longitude override")
+    birth_timezone: Optional[str] = Field(None, description="Birth timezone override", example="Asia/Kolkata")
+
+    # Current location (required)
+    current_place: Optional[str] = Field(None, description="Current city name", example="Morrisville")
+    current_latitude: Optional[float] = Field(None, description="Current latitude override")
+    current_longitude: Optional[float] = Field(None, description="Current longitude override")
+    current_timezone: Optional[str] = Field(None, description="Current timezone override", example="America/New_York")
+
+    # When to evaluate (defaults to now in current timezone)
+    date: Optional[str] = Field(None, description="Local date YYYY-MM-DD (defaults to today at current location)")
+    time: Optional[str] = Field(None, description="Local time HH:MM[:SS] (defaults to now at current location)")
+
+    # Step 2 baseline (defaults to Purva Bhadrapada)
+    baseline_nakshatra: str = Field(
+        "Purva Bhadrapada",
+        description="Baseline nakshatra for Tara Bala distance (Step 2)",
+        example="Purva Bhadrapada",
+    )
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -240,7 +326,9 @@ async def health_check():
         content={
             "status": "healthy",
             "service": "Tattva API",
-            "version": "0.6.0",
+            "version": APP_VERSION,
+            "build_id": BUILD_ID,
+            "environment": ENVIRONMENT,
             "yogas": 21,
             "modules": 18
         }
@@ -252,7 +340,9 @@ async def root():
     return {
         "service": "Tattva Vedic Astrology API",
         "status": "running",
-        "version": "0.6.0",
+        "version": APP_VERSION,
+        "build_id": BUILD_ID,
+        "environment": ENVIRONMENT,
         "total_combinations": 1296,
         "yogas_implemented": 21,
         "modules": 18,
@@ -265,7 +355,6 @@ async def root():
 async def test_daily_endpoint(request: DailyPredictionRequest):
     """Test endpoint to debug daily prediction."""
     import traceback
-    import pytz
     
     try:
         print("Step 1: Received request")
@@ -287,14 +376,7 @@ async def test_daily_endpoint(request: DailyPredictionRequest):
         print(f"Step 3: Location: lat={lat}, lon={lon}, tz={tz_name}")
         
         # Parse birth datetime
-        tz = pytz.timezone(tz_name)
-        date_parts = request.birth_date.split('-')
-        time_parts = request.birth_time.split(':')
-        birth_dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
+        birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, tz_name)
         print(f"Step 4: Birth datetime: {birth_dt}")
         
         # Create AstroTime
@@ -371,8 +453,6 @@ async def generate_profile(birth_data: BirthData, save: bool = False):
     
     Set `save=true` to store the profile in the database.
     """
-    import pytz
-    
     # Get location
     if birth_data.latitude and birth_data.longitude:
         lat = birth_data.latitude
@@ -390,18 +470,7 @@ async def generate_profile(birth_data: BirthData, save: bool = False):
         tz_name = birth_data.timezone or location['timezone']
     
     # Parse datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
     
     # Generate profile
     try:
@@ -604,22 +673,8 @@ async def get_complete_profile(birth_data: BirthData):
         place_name = location['name']
     
     # Parse birth datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        year = int(date_parts[0])
-        month = int(date_parts[1])
-        day = int(date_parts[2])
-        hour = int(time_parts[0])
-        minute = int(time_parts[1])
-        
-        birth_datetime = datetime(year, month, day, hour, minute)
-        birth_datetime_tz = tz.localize(birth_datetime)
-        astro_time = AstroTime(birth_datetime_tz, lat, lon)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    birth_datetime_tz = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
+    astro_time = AstroTime(birth_datetime_tz, lat, lon)
     
     # 1. PSYCHIC PROFILE
     psychic_profile = get_psychic_profile(birth_datetime_tz, lat, lon)
@@ -1025,8 +1080,6 @@ async def get_planet_positions(birth_data: BirthData):
     
     Returns planetary longitudes, signs, nakshatras, and houses.
     """
-    import pytz
-    
     # Get location
     if birth_data.latitude and birth_data.longitude:
         lat = birth_data.latitude
@@ -1041,18 +1094,7 @@ async def get_planet_positions(birth_data: BirthData):
         tz_name = birth_data.timezone or location['timezone']
     
     # Parse datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
     
     # Create AstroTime
     astro_time = AstroTime(dt, lat, lon)
@@ -1111,13 +1153,452 @@ SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
          'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
 
 
+@app.post("/api/v1/panchang/gochara", tags=["Gochara Panchang"])
+async def get_gochara_panchang(request: GocharaPanchangRequest):
+    """Daily sky state + personal timing tables.
+
+    Returns:
+      - Current planetary positions (9 grahas)
+      - Daily panchang: tithi, nakshatra, yoga, karana, vara
+      - Hora table (planetary hours, computed from sunrise)
+      - Choghadiya table (day/night 8-part periods)
+      - Tara Bala summary + full 1..9 table (default natal: Purva Bhadrapada)
+    """
+
+    import pytz
+
+    # Resolve location + timezone
+    if request.latitude is not None and request.longitude is not None:
+        lat = request.latitude
+        lon = request.longitude
+        tz_name = request.timezone or "UTC"
+        place_name = request.place or "(custom coordinates)"
+    else:
+        if not request.place:
+            raise HTTPException(status_code=400, detail="Provide either (latitude, longitude) or place")
+        location = get_location(request.place)
+        if not location:
+            raise HTTPException(status_code=400, detail=f"Could not find location '{request.place}'")
+        lat = location['latitude']
+        lon = location['longitude']
+        tz_name = request.timezone or location['timezone']
+        place_name = location.get('name') or request.place
+
+    try:
+        tz = pytz.timezone(tz_name)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid timezone '{tz_name}': {e}")
+
+    now_local = datetime.now(tz)
+    date_str = request.date or now_local.strftime("%Y-%m-%d")
+    time_str = request.time or now_local.strftime("%H:%M:%S")
+    dt_local = _parse_local_datetime(date_str, time_str, tz_name)
+
+    astro_time = AstroTime(dt_local, lat, lon)
+
+    # Planetary positions (9 grahas)
+    planets_data = {}
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
+        try:
+            longitude = get_planet_longitude(planet, astro_time)
+            nak_name, nak_num, nak_pct, pada = get_nakshatra(longitude)
+            planets_data[planet.name] = {
+                "longitude": round(longitude, 4),
+                "sign": SIGNS[int(longitude / 30)],
+                "degree_in_sign": round(longitude % 30, 4),
+                "nakshatra": nak_name,
+                "nakshatra_number": nak_num,
+                "nakshatra_pada": pada,
+                "nakshatra_percentage": round(nak_pct, 2),
+            }
+        except Exception as e:
+            planets_data[planet.name] = {"error": str(e)}
+
+    # Panchang
+    sun_long = get_planet_longitude(Planet.Sun, astro_time)
+    moon_long = get_planet_longitude(Planet.Moon, astro_time)
+    tithi_name, tithi_num, tithi_pct = get_tithi(sun_long, moon_long)
+    yoga_details = get_nitya_yoga_details(sun_long, moon_long)
+    moon_nak_name, moon_nak_num, moon_nak_pct, moon_pada = get_nakshatra(moon_long)
+    karana = get_karana(sun_long, moon_long)
+
+    vara_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    vara_name = vara_names[dt_local.weekday()]
+
+    # Tara Bala
+    natal_lookup = {n.lower(): i + 1 for i, n in enumerate(NAKSHATRAS)}
+    natal_key = request.natal_nakshatra.strip().lower()
+    natal_nak_num = natal_lookup.get(natal_key)
+    if natal_nak_num is None:
+        raise HTTPException(status_code=400, detail=f"Unknown natal_nakshatra '{request.natal_nakshatra}'")
+
+    tara_name, tara_num = get_tara_bala(natal_nak_num, moon_nak_num)
+    tara_good = {2, 4, 6, 8, 9}
+    tara_bad = {3, 5, 7}
+    if tara_num in tara_good:
+        tara_quality = "good"
+    elif tara_num in tara_bad:
+        tara_quality = "challenging"
+    else:
+        tara_quality = "neutral"
+
+    tara_table = []
+    for i in range(1, 10):
+        transit_nums = [((natal_nak_num + (i - 1) - 1 + offset) % 27) + 1 for offset in (0, 9, 18)]
+        tara_table.append({
+            "tara_number": i,
+            "tara_name": get_tara_bala(natal_nak_num, transit_nums[0])[0],
+            "transit_nakshatras": [{"number": n, "name": NAKSHATRAS[n - 1]} for n in transit_nums],
+            "quality": "good" if i in tara_good else ("challenging" if i in tara_bad else "neutral"),
+        })
+
+    # Sunrise-based tables (hora + choghadiya)
+    try:
+        sun_times = get_sun_times(date_local=dt_local, lat=lat, lon=lon, tz_name=tz_name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute sunrise/sunset: {e}")
+
+    chaldean_order = ["Saturn", "Jupiter", "Mars", "Sun", "Venus", "Mercury", "Moon"]
+    weekday_lords = {  # Python weekday: Mon=0..Sun=6
+        0: "Moon",
+        1: "Mars",
+        2: "Mercury",
+        3: "Jupiter",
+        4: "Venus",
+        5: "Saturn",
+        6: "Sun",
+    }
+
+    start_lord = weekday_lords[sun_times.sunrise.weekday()]
+    start_index = chaldean_order.index(start_lord)
+
+    day_len = sun_times.sunset - sun_times.sunrise
+    night_len = sun_times.next_sunrise - sun_times.sunset
+    day_hora = day_len / 12
+    night_hora = night_len / 12
+
+    hora_table = []
+    for i in range(12):
+        start = sun_times.sunrise + (day_hora * i)
+        end = sun_times.sunrise + (day_hora * (i + 1))
+        lord = chaldean_order[(start_index + i) % 7]
+        hora_table.append({
+            "index": i + 1,
+            "period": "day",
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "lord": lord,
+        })
+    for i in range(12):
+        start = sun_times.sunset + (night_hora * i)
+        end = sun_times.sunset + (night_hora * (i + 1))
+        lord = chaldean_order[(start_index + 12 + i) % 7]
+        hora_table.append({
+            "index": 12 + i + 1,
+            "period": "night",
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "lord": lord,
+        })
+
+    # Choghadiya sequences (common North Indian table)
+    # Keys are Python weekday (Mon=0..Sun=6)
+    day_choghadiya = {
+        6: ["Udveg", "Char", "Labh", "Amrit", "Kaal", "Shubh", "Rog", "Udveg"],  # Sunday
+        0: ["Amrit", "Kaal", "Shubh", "Rog", "Udveg", "Char", "Labh", "Amrit"],  # Monday
+        1: ["Rog", "Udveg", "Char", "Labh", "Amrit", "Kaal", "Shubh", "Rog"],  # Tuesday
+        2: ["Labh", "Amrit", "Kaal", "Shubh", "Rog", "Udveg", "Char", "Labh"],  # Wednesday
+        3: ["Shubh", "Rog", "Udveg", "Char", "Labh", "Amrit", "Kaal", "Shubh"],  # Thursday
+        4: ["Char", "Labh", "Amrit", "Kaal", "Shubh", "Rog", "Udveg", "Char"],  # Friday
+        5: ["Kaal", "Shubh", "Rog", "Udveg", "Char", "Labh", "Amrit", "Kaal"],  # Saturday
+    }
+    night_choghadiya = {
+        6: ["Shubh", "Amrit", "Char", "Rog", "Kaal", "Labh", "Udveg", "Shubh"],  # Sunday
+        0: ["Char", "Rog", "Kaal", "Labh", "Udveg", "Shubh", "Amrit", "Char"],  # Monday
+        1: ["Kaal", "Labh", "Udveg", "Shubh", "Amrit", "Char", "Rog", "Kaal"],  # Tuesday
+        2: ["Udveg", "Shubh", "Amrit", "Char", "Rog", "Kaal", "Labh", "Udveg"],  # Wednesday
+        3: ["Amrit", "Char", "Rog", "Kaal", "Labh", "Udveg", "Shubh", "Amrit"],  # Thursday
+        4: ["Rog", "Kaal", "Labh", "Udveg", "Shubh", "Amrit", "Char", "Rog"],  # Friday
+        5: ["Labh", "Udveg", "Shubh", "Amrit", "Char", "Rog", "Kaal", "Labh"],  # Saturday
+    }
+
+    choghadiya_good = {"Amrit", "Shubh", "Labh", "Char"}
+    choghadiya_bad = {"Kaal", "Rog", "Udveg"}
+
+    choghadiya_table = []
+    day_segment = day_len / 8
+    night_segment = night_len / 8
+
+    wd = sun_times.sunrise.weekday()
+    for i, name in enumerate(day_choghadiya[wd]):
+        start = sun_times.sunrise + (day_segment * i)
+        end = sun_times.sunrise + (day_segment * (i + 1))
+        choghadiya_table.append({
+            "period": "day",
+            "index": i + 1,
+            "name": name,
+            "quality": "good" if name in choghadiya_good else ("bad" if name in choghadiya_bad else "neutral"),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        })
+    for i, name in enumerate(night_choghadiya[wd]):
+        start = sun_times.sunset + (night_segment * i)
+        end = sun_times.sunset + (night_segment * (i + 1))
+        choghadiya_table.append({
+            "period": "night",
+            "index": i + 1,
+            "name": name,
+            "quality": "good" if name in choghadiya_good else ("bad" if name in choghadiya_bad else "neutral"),
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        })
+
+    return {
+        "datetime": dt_local.isoformat(),
+        "date": date_str,
+        "time": time_str,
+        "place": place_name,
+        "latitude": lat,
+        "longitude": lon,
+        "timezone": tz_name,
+        "sun": {
+            "sunrise": sun_times.sunrise.isoformat(),
+            "sunset": sun_times.sunset.isoformat(),
+            "next_sunrise": sun_times.next_sunrise.isoformat(),
+        },
+        "planets": planets_data,
+        "panchang": {
+            "vara": {"name": vara_name},
+            "tithi": {
+                "name": tithi_name,
+                "number": tithi_num,
+                "percentage_elapsed": round(tithi_pct, 2),
+                "percentage_remaining": round(100.0 - tithi_pct, 2),
+            },
+            "karana": karana,
+            "yoga": {
+                "name": yoga_details['name'],
+                "number": yoga_details['number'],
+                "deity": yoga_details['deity'],
+                "nature": yoga_details['nature'],
+                "effect": yoga_details['effect'],
+                "percentage_elapsed": round(yoga_details['percentage'], 2),
+            },
+            "nakshatra": {
+                "name": moon_nak_name,
+                "number": moon_nak_num,
+                "pada": moon_pada,
+                "percentage_elapsed": round(moon_nak_pct, 2),
+            },
+        },
+        "hora": {
+            "start_lord": start_lord,
+            "table": hora_table,
+        },
+        "choghadiya": {
+            "table": choghadiya_table,
+        },
+        "tara_bala": {
+            "natal": {"name": NAKSHATRAS[natal_nak_num - 1], "number": natal_nak_num},
+            "transit_moon": {"name": moon_nak_name, "number": moon_nak_num},
+            "result": {"tara_name": tara_name, "tara_number": tara_num, "quality": tara_quality},
+            "table": tara_table,
+        },
+    }
+
+
+@app.post("/api/v1/prediction/daily-5step", tags=["Daily Prediction"])
+async def get_daily_five_step(request: DailyFiveStepRequest):
+    """Implements the 5-step daily workflow.
+
+    Step 1: Sunrise at current location -> Vara Lord
+    Step 2: Tara Bala from baseline nakshatra -> Safety Score
+    Step 3: Moon gochara relative to natal Moon -> Mood Score
+    Step 4: BAV strength for transiting planets in their current signs -> Effectiveness
+    Step 5: Vedha check -> Active vs Obstructed (placeholder until vedhanka table is ported)
+    """
+
+    import pytz
+
+    def _resolve_location(place: str | None, lat: float | None, lon: float | None, tz_override: str | None, *, label: str) -> tuple[str, float, float, str]:
+        if lat is not None and lon is not None:
+            tz_name = tz_override or "UTC"
+            return place or f"({label} coordinates)", lat, lon, tz_name
+        if not place:
+            raise HTTPException(status_code=400, detail=f"Provide either {label}_latitude/{label}_longitude or {label}_place")
+        location = get_location(place)
+        if not location:
+            raise HTTPException(status_code=400, detail=f"Could not find location '{place}'")
+        tz_name = tz_override or location['timezone']
+        return location.get('name') or place, location['latitude'], location['longitude'], tz_name
+
+    # Current location is required
+    current_place_name, current_lat, current_lon, current_tz_name = _resolve_location(
+        request.current_place,
+        request.current_latitude,
+        request.current_longitude,
+        request.current_timezone,
+        label="current",
+    )
+
+    # Birth location is required for accurate natal Moon + BAV
+    birth_place_name, birth_lat, birth_lon, birth_tz_name = _resolve_location(
+        request.birth_place,
+        request.birth_latitude,
+        request.birth_longitude,
+        request.birth_timezone,
+        label="birth",
+    )
+
+    # Determine evaluation datetime in CURRENT timezone
+    try:
+        current_tz = pytz.timezone(current_tz_name)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid current timezone '{current_tz_name}': {e}")
+
+    now_local = datetime.now(current_tz)
+    date_str = request.date or now_local.strftime("%Y-%m-%d")
+    time_str = request.time or now_local.strftime("%H:%M:%S")
+    dt_local = _parse_local_datetime(date_str, time_str, current_tz_name)
+
+    # Transit time uses current location (lat/lon doesn't materially affect longitudes here, but keep consistent)
+    transit_time = AstroTime(dt_local, current_lat, current_lon)
+
+    # Natal time uses birth datetime + birth location
+    birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, birth_tz_name)
+    natal_time = AstroTime(birth_dt, birth_lat, birth_lon)
+
+    # Step 1: sunrise/sunset + vara lord
+    # Hindu day (vara) changes at sunrise, not at midnight.
+    sun_times = get_sun_times(date_local=dt_local, lat=current_lat, lon=current_lon, tz_name=current_tz_name)
+    if dt_local < sun_times.sunrise:
+        sun_times = get_sun_times(date_local=dt_local - timedelta(days=1), lat=current_lat, lon=current_lon, tz_name=current_tz_name)
+
+    weekday_lords_at_sunrise = {
+        0: "Moon",      # Monday
+        1: "Mars",      # Tuesday
+        2: "Mercury",   # Wednesday
+        3: "Jupiter",   # Thursday
+        4: "Venus",     # Friday
+        5: "Saturn",    # Saturday
+        6: "Sun",       # Sunday
+    }
+    vara_lord = weekday_lords_at_sunrise[sun_times.sunrise.weekday()]
+
+    # Step 2: Tara Bala from baseline nakshatra to transit Moon nakshatra
+    baseline_lookup = {n.lower(): i + 1 for i, n in enumerate(NAKSHATRAS)}
+    baseline_key = request.baseline_nakshatra.strip().lower()
+    baseline_nak_num = baseline_lookup.get(baseline_key)
+    if baseline_nak_num is None:
+        raise HTTPException(status_code=400, detail=f"Unknown baseline_nakshatra '{request.baseline_nakshatra}'")
+
+    transit_moon_long = get_planet_longitude(Planet.Moon, transit_time)
+    transit_moon_nak_name, transit_moon_nak_num, _, _ = get_nakshatra(transit_moon_long)
+
+    tara_name, tara_num = get_tara_bala(baseline_nak_num, transit_moon_nak_num)
+    tara_good = {2, 4, 6, 8, 9}
+    tara_bad = {3, 5, 7}
+    if tara_num in tara_good:
+        safety = "Success"
+    elif tara_num in tara_bad:
+        safety = "Danger"
+    else:
+        safety = "Safe"
+
+    # Step 3: Moon relative to natal Moon (Chandra gochara house)
+    natal_moon_long = get_planet_longitude(Planet.Moon, natal_time)
+    natal_moon_sign, natal_moon_sign_num = get_rasi(natal_moon_long)
+    transit_moon_sign, transit_moon_sign_num = get_rasi(transit_moon_long)
+
+    chandra_house = get_gochara_house(natal_moon_sign_num, transit_moon_sign_num)
+    if chandra_house in {6, 8, 12}:
+        mood_score = "Anxiety"
+    elif chandra_house in {1, 5, 9, 11}:
+        mood_score = "Flow"
+    else:
+        mood_score = "Neutral"
+
+    # Step 4: BAV strength for transiting planets in their current signs
+    bav = get_all_bhinnashtakavarga(natal_time)  # computed from natal positions
+    transiting_planets = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    bav_strength = {}
+    for p in transiting_planets:
+        p_long = get_planet_longitude(p, transit_time)
+        _, p_sign_num = get_rasi(p_long)
+        points = bav[p.name][p_sign_num]
+        if points >= 5:
+            effectiveness = "High"
+        elif points == 4:
+            effectiveness = "Medium"
+        else:
+            effectiveness = "Low"
+        bav_strength[p.name] = {
+            "transit_sign": RASIS[p_sign_num - 1],
+            "transit_sign_number": p_sign_num,
+            "bav_points": points,
+            "effectiveness": effectiveness,
+        }
+
+    # Step 5: Vedha check (as per provided rules table)
+    vedha_planets = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]
+    current_planetary_positions = {}
+    for p in vedha_planets:
+        p_long = get_planet_longitude(p, transit_time)
+        _, p_sign_num = get_rasi(p_long)
+        current_planetary_positions[p.name] = p_sign_num
+
+    vedha_by_planet = calculate_vedha_status(natal_moon_sign_num, current_planetary_positions)
+    vedha = {
+        "implemented": True,
+        "basis": "From natal Moon sign",
+        "by_planet": vedha_by_planet,
+        "any_blocked": any(v.get("status") == "Blocked" for v in vedha_by_planet.values()),
+    }
+
+    return {
+        "datetime": dt_local.isoformat(),
+        "current_location": {
+            "place": current_place_name,
+            "latitude": current_lat,
+            "longitude": current_lon,
+            "timezone": current_tz_name,
+        },
+        "birth_location": {
+            "place": birth_place_name,
+            "latitude": birth_lat,
+            "longitude": birth_lon,
+            "timezone": birth_tz_name,
+        },
+        "steps": {
+            "1_location_sync": {
+                "sunrise": sun_times.sunrise.isoformat(),
+                "sunset": sun_times.sunset.isoformat(),
+                "vara_lord": vara_lord,
+            },
+            "2_tara_bala": {
+                "baseline_nakshatra": {"name": NAKSHATRAS[baseline_nak_num - 1], "number": baseline_nak_num},
+                "transit_moon_nakshatra": {"name": transit_moon_nak_name, "number": transit_moon_nak_num},
+                "tara": {"name": tara_name, "number": tara_num},
+                "safety_score": safety,
+            },
+            "3_gochar_moon": {
+                "natal_moon": {"sign": natal_moon_sign, "sign_number": natal_moon_sign_num},
+                "transit_moon": {"sign": transit_moon_sign, "sign_number": transit_moon_sign_num},
+                "house_from_natal_moon": chandra_house,
+                "mood_score": mood_score,
+            },
+            "4_bav_strength": bav_strength,
+            "5_vedha_check": vedha,
+        },
+    }
+
+
 @app.post("/api/v1/chart/panchang", tags=["Birth Chart"])
 async def get_panchang_data(birth_data: BirthData):
     """
     Get Panchang (Hindu Calendar) data including Tithi, Yoga, Nakshatra.
     """
-    import pytz
-    
     # Get location
     if birth_data.latitude and birth_data.longitude:
         lat = birth_data.latitude
@@ -1132,18 +1613,7 @@ async def get_panchang_data(birth_data: BirthData):
         tz_name = birth_data.timezone or location['timezone']
     
     # Parse datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
     
     # Create AstroTime
     astro_time = AstroTime(dt, lat, lon)
@@ -1192,8 +1662,6 @@ async def get_dasa_periods(birth_data: BirthData, current_date: Optional[str] = 
     
     Returns current Maha Dasa (main period) and Bhukti (sub-period).
     """
-    import pytz
-    
     # Get location
     if birth_data.latitude and birth_data.longitude:
         lat = birth_data.latitude
@@ -1208,18 +1676,7 @@ async def get_dasa_periods(birth_data: BirthData, current_date: Optional[str] = 
         tz_name = birth_data.timezone or location['timezone']
     
     # Parse birth datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        birth_dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    birth_dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
     
     # Parse current date or use today
     if current_date:
@@ -1259,8 +1716,6 @@ async def get_divisional_charts(birth_data: BirthData, planet: str = "Moon"):
     
     Includes D1 (Rasi), D9 (Navamsa), D10 (Dasamsa), and all 16 standard vargas.
     """
-    import pytz
-    
     # Get location
     if birth_data.latitude and birth_data.longitude:
         lat = birth_data.latitude
@@ -1275,18 +1730,7 @@ async def get_divisional_charts(birth_data: BirthData, planet: str = "Moon"):
         tz_name = birth_data.timezone or location['timezone']
     
     # Parse datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = birth_data.birth_date.split('-')
-        time_parts = birth_data.birth_time.split(':')
-        
-        dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time format: {str(e)}")
+    dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
     
     # Create AstroTime
     astro_time = AstroTime(dt, lat, lon)
@@ -1385,8 +1829,6 @@ async def get_daily_prediction_endpoint(request: DailyPredictionRequest):
     2. **Fuel** (Chandra Gochara) - Energy level from Birth Moon
     3. **Luck** (Tarabala) - Favorable/unfavorable status
     """
-    import pytz
-    
     # Determine prediction date
     prediction_date = request.prediction_date or datetime.now().strftime("%Y-%m-%d")
     
@@ -1419,18 +1861,7 @@ async def get_daily_prediction_endpoint(request: DailyPredictionRequest):
         tz_name = request.timezone or location['timezone']
     
     # Parse birth datetime
-    try:
-        tz = pytz.timezone(tz_name)
-        date_parts = request.birth_date.split('-')
-        time_parts = request.birth_time.split(':')
-        
-        birth_dt = datetime(
-            int(date_parts[0]), int(date_parts[1]), int(date_parts[2]),
-            int(time_parts[0]), int(time_parts[1]), 0,
-            tzinfo=tz
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date/time: {e}")
+    birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, tz_name)
     
     # Get birth chart data
     birth_time = AstroTime(dt=birth_dt, lat=lat, lon=lon)

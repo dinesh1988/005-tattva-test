@@ -42,6 +42,56 @@ YOGA_DATA = [
 
 YOGAS = [y[0] for y in YOGA_DATA]
 
+
+# Karana names (11 total: 7 movable + 4 fixed)
+KARANAS = [
+    "Bava", "Balava", "Kaulava", "Taitila", "Garaja", "Vanija", "Vishti",
+    "Shakuni", "Chatushpada", "Nagava", "Kimstughna",
+]
+
+
+def get_karana(sun_long: float, moon_long: float) -> dict:
+    """Calculate Karana based on the half-tithi (6°) of Moon-Sun elongation.
+
+    Notes:
+      - There are 60 half-tithis (30 tithis x 2).
+      - Fixed karanas occur at specific half-tithi indices:
+        1: Kimstughna, 58: Shakuni, 59: Chatushpada, 60: Nagava
+      - The remaining 56 halves repeat the 7 movable karanas starting from Bava.
+
+    Returns:
+        dict with name, type (movable/fixed), and half_index (1-60)
+    """
+
+    # Normalize longitudes
+    sun_long = sun_long % 360
+    moon_long = moon_long % 360
+
+    # Difference (Moon - Sun)
+    diff = moon_long - sun_long
+    if diff < 0:
+        diff += 360
+
+    # Each tithi is 12°, each karana is 6° (half tithi)
+    half_index = int(diff / 6.0) + 1  # 1..60
+    if half_index < 1:
+        half_index = 1
+    if half_index > 60:
+        half_index = 60
+
+    if half_index == 1:
+        return {"name": "Kimstughna", "type": "fixed", "half_index": half_index}
+    if half_index == 58:
+        return {"name": "Shakuni", "type": "fixed", "half_index": half_index}
+    if half_index == 59:
+        return {"name": "Chatushpada", "type": "fixed", "half_index": half_index}
+    if half_index == 60:
+        return {"name": "Nagava", "type": "fixed", "half_index": half_index}
+
+    movable = ["Bava", "Balava", "Kaulava", "Taitila", "Garaja", "Vanija", "Vishti"]
+    idx = (half_index - 2) % 7
+    return {"name": movable[idx], "type": "movable", "half_index": half_index}
+
 def get_tithi(sun_long: float, moon_long: float) -> tuple[str, int, float]:
     """
     Calculates the Tithi based on the longitudinal difference between Moon and Sun.

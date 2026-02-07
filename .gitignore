@@ -106,6 +106,7 @@ Secrets-HideMe.cs
 *SECRET*
 credentials.json
 token.json
+firestore-service-account.json
 
 # Large datasets (use Git LFS or external storage)
 *.csv
