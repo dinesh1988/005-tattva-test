@@ -1,0 +1,15 @@
+# VedAstroPy Core Dependencies
+pyswisseph>=2.10.0
+pytz>=2023.3
+
+# FastAPI & API Server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# Database & Storage
+python-dotenv>=1.0.0
+
+# HTTP & Async
+httpx>=0.25.0
+aiofiles>=23.2.1
