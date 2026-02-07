@@ -16,9 +16,13 @@ vedastro_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(vedastro_dir, '.env'))
 
 API_VERSION_DEFAULT = "0.6.0"
-APP_VERSION = os.getenv("VERSION", API_VERSION_DEFAULT)
-BUILD_ID = os.getenv("BUILD_ID")
-ENVIRONMENT = os.getenv("ENVIRONMENT")
+
+
+def _get_build_metadata() -> tuple[str, str | None, str | None]:
+    version = os.getenv("VERSION", API_VERSION_DEFAULT)
+    build_id = os.getenv("BUILD_ID")
+    environment = os.getenv("ENVIRONMENT")
+    return version, build_id, environment
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -321,14 +325,15 @@ class DailyFiveStepRequest(BaseModel):
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint for Cloud Run."""
+    version, build_id, environment = _get_build_metadata()
     return JSONResponse(
         status_code=200,
         content={
             "status": "healthy",
             "service": "Tattva API",
-            "version": APP_VERSION,
-            "build_id": BUILD_ID,
-            "environment": ENVIRONMENT,
+            "version": version,
+            "build_id": build_id,
+            "environment": environment,
             "yogas": 21,
             "modules": 18
         }
@@ -337,12 +342,13 @@ async def health_check():
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint with API info."""
+    version, build_id, environment = _get_build_metadata()
     return {
         "service": "Tattva Vedic Astrology API",
         "status": "running",
-        "version": APP_VERSION,
-        "build_id": BUILD_ID,
-        "environment": ENVIRONMENT,
+        "version": version,
+        "build_id": build_id,
+        "environment": environment,
         "total_combinations": 1296,
         "yogas_implemented": 21,
         "modules": 18,
