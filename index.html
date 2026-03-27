@@ -15,7 +15,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 20px 2px;
         }
         
         .container {
@@ -45,7 +45,7 @@
         }
         
         .content {
-            padding: 40px;
+            padding: 40px 8px;
         }
         
         .form-group {
@@ -122,7 +122,7 @@
         
         .result {
             margin-top: 30px;
-            padding: 30px;
+            padding: 30px 6px;
             background: #f8f9fa;
             border-radius: 15px;
             display: none;
@@ -856,19 +856,10 @@
                     <div id="ai_chat_messages" style="height: clamp(220px, 40vh, 400px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
                         <div style="color: #999; font-size: 13px; text-align: center; margin: auto;">Generate a profile above, then ask questions here.</div>
                     </div>
-                    <!-- Suggested questions -->
-                    <div id="ai_suggestions" style="display: none; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 6px;">
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">What career suits me?</span>
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">When is my best period for wealth?</span>
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">What are my strongest yogas?</span>
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">Explain my current dasa period.</span>
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">What are my marriage prospects?</span>
-                        <span class="example-btn" style="font-size: 12px; padding: 4px 10px; background: #e3f2fd; color: #1a73e8;" onclick="askSuggestion(this)">What health areas need attention?</span>
-                    </div>
                     <!-- Input -->
                     <div style="display: flex; gap: 8px; align-items: stretch;">
                         <input type="text" id="ai_chat_input" placeholder="Ask about career, relationships, health, timing..." style="font-size: 14px; flex: 1; min-width: 0;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendAiChat();}">
-                        <button onclick="sendAiChat()" style="width: auto; padding: 12px 20px; font-size: 14px; flex-shrink: 0;" id="ai_send_btn">Send ➤</button>
+                        <button onclick="sendAiChat()" style="width: 42px; height: 42px; padding: 0; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;" id="ai_send_btn" title="Send">➤</button>
                     </div>
                 </div>
 
@@ -998,8 +989,6 @@
             };
             _aiProfileContext = JSON.stringify(ctx);
             _aiChatHistory = [];
-            // Show suggestions
-            document.getElementById('ai_suggestions').style.display = 'flex';
             // Clear chat window
             const msgs = document.getElementById('ai_chat_messages');
             msgs.innerHTML = '';
