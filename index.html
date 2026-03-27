@@ -15,7 +15,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px 2px;
+            padding: 20px 2px 6px;
         }
         
         .container {
@@ -45,7 +45,7 @@
         }
         
         .content {
-            padding: 40px 8px;
+            padding: 40px 8px 12px;
         }
         
         .form-group {
@@ -833,7 +833,12 @@
                         Ask questions about this birth chart. The AI has the full profile as context.
                     </p>
                     <!-- API Key Setup -->
-                    <div id="ai_key_setup" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="background: #f8f9fa; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 15px; cursor: pointer; user-select: none;" onclick="toggleAiKeySetup()">
+                            <span style="font-size: 12px; font-weight: 600; color: #555;">🔑 API Key Setup</span>
+                            <span id="ai_key_toggle_icon" style="font-size: 12px; color: #888;">▲</span>
+                        </div>
+                        <div id="ai_key_setup" style="padding: 0 15px 15px;">
                         <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
                             <input type="password" id="ai_api_key" value="" placeholder="Paste your API key here" style="font-size: 13px; padding: 8px 12px; flex: 1; min-width: 0;">
                             <select id="ai_endpoint" style="padding: 8px 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;" onchange="onEndpointChange()">
@@ -851,9 +856,10 @@
                             </select>
                         </div>
                         <div style="font-size: 12px; color: #999;">Key is stored in memory only, never sent anywhere except the chosen endpoint.</div>
+                        </div>
                     </div>
                     <!-- Chat window -->
-                    <div id="ai_chat_messages" style="height: clamp(220px, 40vh, 400px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
+                    <div id="ai_chat_messages" style="height: clamp(300px, 55vh, 600px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
                         <div style="color: #999; font-size: 13px; text-align: center; margin: auto;">Generate a profile above, then ask questions here.</div>
                     </div>
                     <!-- Input -->
@@ -963,6 +969,13 @@
             const sel = document.getElementById('ai_endpoint');
             const modelRow = document.getElementById('ai_model_row');
             modelRow.style.display = sel.value === 'azure' ? 'none' : 'block';
+        }
+
+        let _aiKeySetupOpen = true;
+        function toggleAiKeySetup() {
+            _aiKeySetupOpen = !_aiKeySetupOpen;
+            document.getElementById('ai_key_setup').style.display = _aiKeySetupOpen ? '' : 'none';
+            document.getElementById('ai_key_toggle_icon').textContent = _aiKeySetupOpen ? '▲' : '▼';
         }
 
         let _aiProfileContext = null;
