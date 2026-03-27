@@ -838,10 +838,10 @@ async def get_complete_profile(birth_data: BirthData):
             'number': yoga_num,
             'interpretation': "Daily yoga indicates auspicious combinations affecting success and fortune."
         },
-        'weekday': birth_datetime.strftime('%A'),
+        'weekday': birth_datetime_tz.strftime('%A'),
         'weekday_planet': {'Monday': 'Moon', 'Tuesday': 'Mars', 'Wednesday': 'Mercury', 
                            'Thursday': 'Jupiter', 'Friday': 'Venus', 'Saturday': 'Saturn', 
-                           'Sunday': 'Sun'}[birth_datetime.strftime('%A')]
+                           'Sunday': 'Sun'}[birth_datetime_tz.strftime('%A')]
     }
     
     # 4. DASA PERIODS with timing
@@ -854,7 +854,7 @@ async def get_complete_profile(birth_data: BirthData):
     dasa_schedule = get_vimshottari_dasa_schedule(nakshatra_num, nakshatra_pct, birth_datetime_tz)
     
     current_year = datetime.now().year
-    birth_year = birth_datetime.year
+    birth_year = birth_datetime_tz.year
     age = current_year - birth_year
     
     dasa_interpretation = {
@@ -895,7 +895,7 @@ async def get_complete_profile(birth_data: BirthData):
     
     # 6. NUMEROLOGY
     from logic.numerology import get_full_numerology
-    numerology = get_full_numerology(birth_data.name, birth_datetime)
+    numerology = get_full_numerology(birth_data.name, birth_datetime_tz)
     
     # 7. ASHTAKAVARGA (Computationally intensive - store this!)
     # Get BAV (Bhinnashtakavarga) for all 7 planets
