@@ -1948,15 +1948,16 @@ async def get_cached_daily_prediction(user_id: str, date: str):
 
 # =============================================================================
 # MCP Server (mounted at /mcp)
-# Accessible via SSE at: /mcp/sse
+# Accessible via streamable-http at: POST /mcp/
 # Compatible with Claude Desktop, VS Code, and any MCP client
+# Uses stateless streamable-http transport — no session affinity needed (Cloud Run safe)
 # =============================================================================
 
 import sys as _sys
 import os as _os
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
 from mcp_server import mcp
-app.mount("/mcp", mcp.http_app(transport="sse"))
+app.mount("/mcp", mcp.http_app(transport="streamable-http", path="/", stateless_http=True))
 
 
 # =============================================================================
