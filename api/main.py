@@ -1947,6 +1947,19 @@ async def get_cached_daily_prediction(user_id: str, date: str):
 
 
 # =============================================================================
+# MCP Server (mounted at /mcp)
+# Accessible via SSE at: /mcp/sse
+# Compatible with Claude Desktop, VS Code, and any MCP client
+# =============================================================================
+
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+from mcp_server import mcp
+app.mount("/mcp", mcp.http_app(transport="sse"))
+
+
+# =============================================================================
 # Run with: uvicorn api.main:app --reload
 # =============================================================================
 

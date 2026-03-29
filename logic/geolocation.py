@@ -4,6 +4,9 @@ Geolocation - Convert place names to latitude/longitude coordinates
 
 from typing import Tuple, Optional, Dict
 
+# In-memory cache for online geocoded results
+_geocache: Dict[str, Optional[Dict]] = {}
+
 # =============================================================================
 # BUILT-IN CITY DATABASE (No internet required)
 # =============================================================================
@@ -176,16 +179,51 @@ CITIES: Dict[str, Tuple[float, float, str]] = {
 }
 
 
+def _geocode_full(place_name: str) -> Optional[Dict]:
+    """
+    Resolve any place name to lat/lon/timezone using geopy + timezonefinder.
+    Results are cached in-memory for the lifetime of the process.
+    Returns None if geopy is not installed or the place is not found.
+    """
+    key = place_name.lower().strip()
+    if key in _geocache:
+        return _geocache[key]
+
+    result = None
+    try:
+        from geopy.geocoders import Nominatim
+        from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+        from timezonefinder import TimezoneFinder
+
+        geolocator = Nominatim(user_agent="tattva-vedic-astrology")
+        geo = geolocator.geocode(place_name, timeout=10)
+        if geo:
+            tf = TimezoneFinder()
+            tz = tf.timezone_at(lng=geo.longitude, lat=geo.latitude) or "UTC"
+            result = {
+                'name': geo.address.split(',')[0].strip(),
+                'latitude': geo.latitude,
+                'longitude': geo.longitude,
+                'timezone': tz,
+            }
+    except (ImportError, Exception):
+        pass
+
+    _geocache[key] = result
+    return result
+
+
 def get_coordinates(place_name: str) -> Optional[Tuple[float, float]]:
     """
-    Get latitude and longitude for a place name from built-in database.
-    
+    Get latitude and longitude for a place name.
+    Tries the built-in database first, then falls back to online geocoding.
+
     Args:
-        place_name: City name (case-insensitive)
-        
+        place_name: City name or any address (case-insensitive)
+
     Returns:
         Tuple of (latitude, longitude) or None if not found
-    
+
     Example:
         >>> get_coordinates("Chennai")
         (13.0827, 80.2707)
@@ -194,13 +232,18 @@ def get_coordinates(place_name: str) -> Optional[Tuple[float, float]]:
     for city, (lat, lon, _) in CITIES.items():
         if city.lower() == place_name.lower():
             return (lat, lon)
-    
+
     # Try partial match
     place_lower = place_name.lower()
     for city, (lat, lon, _) in CITIES.items():
         if place_lower in city.lower() or city.lower() in place_lower:
             return (lat, lon)
-    
+
+    # Fall back to online geocoding
+    result = _geocode_full(place_name)
+    if result:
+        return (result['latitude'], result['longitude'])
+
     return None
 
 
@@ -226,7 +269,7 @@ def get_location(place_name: str) -> Optional[Dict]:
                 'longitude': lon,
                 'timezone': tz
             }
-    
+
     # Partial match
     place_lower = place_name.lower()
     for city, (lat, lon, tz) in CITIES.items():
@@ -237,8 +280,9 @@ def get_location(place_name: str) -> Optional[Dict]:
                 'longitude': lon,
                 'timezone': tz
             }
-    
-    return None
+
+    # Fall back to online geocoding (geopy + timezonefinder)
+    return _geocode_full(place_name)
 
 
 def get_timezone(place_name: str) -> Optional[str]:
