@@ -1948,16 +1948,31 @@ async def get_cached_daily_prediction(user_id: str, date: str):
 
 # =============================================================================
 # MCP Server (mounted at /mcp)
-# Accessible via streamable-http at: POST /mcp/
+# POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client
-# Uses stateless streamable-http transport — no session affinity needed (Cloud Run safe)
 # =============================================================================
 
 import sys as _sys
 import os as _os
+import contextlib as _contextlib
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
-from mcp_server import mcp
-app.mount("/mcp", mcp.http_app(transport="streamable-http", path="/", stateless_http=True))
+from mcp_server import mcp as _mcp
+
+_mcp_http_app = _mcp.http_app(transport="streamable-http", path="/", stateless_http=True)
+
+# Compose MCP lifespan with any existing app lifespan
+_original_lifespan = app.router.lifespan_context
+
+@_contextlib.asynccontextmanager
+async def _combined_lifespan(application):
+    async with _contextlib.AsyncExitStack() as _stack:
+        if _original_lifespan is not None:
+            await _stack.enter_async_context(_original_lifespan(application))
+        await _stack.enter_async_context(_mcp_http_app.lifespan(_mcp_http_app))
+        yield
+
+app.router.lifespan_context = _combined_lifespan
+app.mount("/mcp", _mcp_http_app)
 
 
 # =============================================================================
