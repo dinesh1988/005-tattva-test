@@ -1,0 +1,45 @@
+# Manual Cloud Build submission from VedAstroPy/ directory
+# Usage: gcloud builds submit --config cloudbuild_submit.yaml --substitutions SHORT_SHA=$(git rev-parse --short HEAD) .
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/tattva-api:latest'
+      - '.'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/tattva-api:latest']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'tattva-api'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--quiet'
+
+images:
+  - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/tattva-api:latest'
+
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
