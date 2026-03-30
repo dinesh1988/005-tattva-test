@@ -855,6 +855,10 @@
                                 <option value="llama3-8b-8192">Groq llama3-8b</option>
                             </select>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <input type="checkbox" id="ai_use_tools" style="width: auto; margin: 0; cursor: pointer;">
+                            <label for="ai_use_tools" style="font-size: 13px; font-weight: 600; color: #555; cursor: pointer; margin: 0;">🔧 Enable live tools (MCP / REST) — model must support function calling</label>
+                        </div>
                         <div style="font-size: 12px; color: #999;">Key is stored in memory only, never sent anywhere except the chosen endpoint.</div>
                         </div>
                     </div>
@@ -1190,11 +1194,13 @@ ${_aiProfileContext}`;
                 ..._aiChatHistory
             ];
 
+            const useTools = document.getElementById('ai_use_tools')?.checked;
+
             try {
                 for (let round = 0; round < 5; round++) {
-                    const body = isAzure
-                        ? { messages, tools: AI_TOOLS, tool_choice: 'auto', max_tokens: 1000, temperature: 0.7 }
-                        : { model, messages, tools: AI_TOOLS, tool_choice: 'auto', max_tokens: 1000, temperature: 0.7 };
+                    const baseBody = { messages, max_tokens: 1000, temperature: 0.7 };
+                    if (useTools) { baseBody.tools = AI_TOOLS; baseBody.tool_choice = 'auto'; }
+                    const body = isAzure ? baseBody : { ...baseBody, model };
 
                     const resp = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
                     if (!resp.ok) {
