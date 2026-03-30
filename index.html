@@ -963,7 +963,134 @@
                 );
             }
         }
-        
+
+        // ── Tattva API Clients (REST + MCP) ──────────────────────────────────
+        async function _parseMcpSse(response) {
+            const text = await response.text();
+            for (const line of text.split('\n')) {
+                if (line.startsWith('data: ')) return JSON.parse(line.slice(6));
+            }
+            throw new Error('No data event in MCP SSE response');
+        }
+
+        async function callMcpTool(toolName, args) {
+            const mcpUrl = `${getServiceOrigin()}/mcp/`;
+            const resp = await fetch(mcpUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name: toolName, arguments: args } })
+            });
+            if (!resp.ok) throw new Error(`MCP HTTP ${resp.status}`);
+            const envelope = await _parseMcpSse(resp);
+            if (envelope.error) throw new Error(envelope.error.message);
+            const textContent = envelope.result?.content?.[0]?.text;
+            if (textContent == null) throw new Error('Empty MCP tool result');
+            return JSON.parse(textContent);
+        }
+
+        const TattvaRest = {
+            async getDailyFiveStep(params) {
+                const r = await fetch(DAILY5_URL(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+                return r.json();
+            },
+            async getPanchang(params) {
+                const r = await fetch(GOCHARA_URL(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(params) });
+                if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || `HTTP ${r.status}`); }
+                return r.json();
+            }
+        };
+
+        const TattvaM = {
+            lookupLocation:        (city) => callMcpTool('lookup_location',        { city }),
+            getPlanetPositions:    (args)  => callMcpTool('get_planet_positions',   args),
+            getPanchang:           (args)  => callMcpTool('get_panchang',            args),
+            getDasa:               (args)  => callMcpTool('get_dasa',               args),
+            getVargas:             (args)  => callMcpTool('get_vargas',             args),
+            generatePsychicProfile:(args)  => callMcpTool('generate_psychic_profile', args),
+            getNumerology:         (args)  => callMcpTool('get_numerology',         args),
+            analyzeNameNumerology: (args)  => callMcpTool('analyze_name_numerology', args),
+            calculateTaraBala:     (args)  => callMcpTool('calculate_tara_bala',    args),
+            listNakshatras:        ()      => callMcpTool('list_nakshatras',        {}),
+            dailyFiveStep:         (args)  => callMcpTool('daily_five_step',        args),
+        };
+
+        const AI_TOOLS = [
+            { type: 'function', function: { name: 'mcp_lookup_location',
+                description: 'Look up geographic coordinates and timezone for a city name.',
+                parameters: { type: 'object', properties: { city: { type: 'string', description: 'City name' } }, required: ['city'] } } },
+            { type: 'function', function: { name: 'mcp_daily_five_step',
+                description: 'Run the 5-step Vedic daily timing workflow (vara lord, tara bala, moon gochara, BAV, vedha) for a person at their current location.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, current_place: { type: 'string' }, current_timezone: { type: 'string', description: 'IANA e.g. America/New_York' },
+                    date: { type: 'string', description: 'Target date YYYY-MM-DD (optional)' }, time: { type: 'string', description: 'Target time HH:MM:SS (optional)' },
+                    baseline_nakshatra: { type: 'string', description: 'Natal nakshatra name (optional)' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_panchang',
+                description: 'Get panchang (tithi, nakshatra, yoga, vara, karana) for a location and time.',
+                parameters: { type: 'object', properties: {
+                    date: { type: 'string', description: 'YYYY-MM-DD' }, time: { type: 'string', description: 'HH:MM' },
+                    place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['date', 'time'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_positions',
+                description: 'Get Vedic planetary positions (sign, nakshatra, degree, longitude) for any date/time/place.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_dasa',
+                description: 'Get Vimshottari Dasa schedule (all mahadasas and bhuktis) for a birth chart. Pass current_date to identify the active dasa.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string' }, birth_time: { type: 'string' }, birth_place: { type: 'string' },
+                    current_date: { type: 'string', description: 'Today YYYY-MM-DD to identify active period' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_numerology',
+                description: 'Get full Vedic/Pythagorean numerology reading (life path, destiny, soul urge, name numbers).',
+                parameters: { type: 'object', properties: {
+                    name: { type: 'string' }, birth_date: { type: 'string', description: 'YYYY-MM-DD' }
+                }, required: ['name', 'birth_date'] } } },
+            { type: 'function', function: { name: 'mcp_get_vargas',
+                description: 'Get divisional chart (varga) positions (D1 through D60) for a birth chart.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string' }, birth_time: { type: 'string' }, birth_place: { type: 'string' },
+                    planet: { type: 'string', description: 'Optional: specific planet to filter' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_calculate_tara_bala',
+                description: 'Calculate Tara Bala (lunar transit quality) given natal and current transit nakshatra numbers.',
+                parameters: { type: 'object', properties: {
+                    birth_nakshatra_number: { type: 'integer', description: '1–27' },
+                    transit_nakshatra_number: { type: 'integer', description: '1–27' }
+                }, required: ['birth_nakshatra_number', 'transit_nakshatra_number'] } } },
+            { type: 'function', function: { name: 'rest_get_panchang',
+                description: 'Get full gochara panchang (current sky, hora table, choghadiya, tara bala) via REST for a birth-chart person.',
+                parameters: { type: 'object', properties: {
+                    name: { type: 'string' }, birth_date: { type: 'string' }, birth_time: { type: 'string' }, birth_place: { type: 'string' }
+                }, required: ['name', 'birth_date', 'birth_time', 'birth_place'] } } },
+            { type: 'function', function: { name: 'rest_get_daily_five_step',
+                description: 'Run the 5-step daily Vedic prediction via REST API. Requires birth details + current place.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string' }, birth_time: { type: 'string' }, birth_place: { type: 'string' }, current_place: { type: 'string' }
+                }, required: ['birth_date', 'birth_time', 'birth_place', 'current_place'] } } },
+        ];
+
+        async function dispatchAiToolCall(name, args) {
+            switch (name) {
+                case 'mcp_lookup_location':      return TattvaM.lookupLocation(args.city);
+                case 'mcp_daily_five_step':      return TattvaM.dailyFiveStep(args);
+                case 'mcp_get_panchang':         return TattvaM.getPanchang(args);
+                case 'mcp_get_planet_positions': return TattvaM.getPlanetPositions(args);
+                case 'mcp_get_dasa':             return TattvaM.getDasa(args);
+                case 'mcp_get_numerology':       return TattvaM.getNumerology(args);
+                case 'mcp_get_vargas':           return TattvaM.getVargas(args);
+                case 'mcp_calculate_tara_bala':  return TattvaM.calculateTaraBala(args);
+                case 'rest_get_panchang':        return TattvaRest.getPanchang(args);
+                case 'rest_get_daily_five_step': return TattvaRest.getDailyFiveStep(args);
+                default: throw new Error(`Unknown tool: ${name}`);
+            }
+        }
+        // ── End Tattva API Clients ────────────────────────────────────────────
+
         // ── AI Chat ──────────────────────────────────────────────────────────
         function onEndpointChange() {
             const sel = document.getElementById('ai_endpoint');
@@ -1040,48 +1167,84 @@
 
             _aiChatHistory.push({ role: 'user', content: question });
 
-            const systemPrompt = `You are an expert Vedic astrologer. Answer questions about the person below based strictly on their birth chart data. Be specific, reference actual planets/yogas/dasas from the data. Keep answers concise (3-6 sentences unless more detail is asked).
+            const systemPrompt = `You are an expert Vedic astrologer with access to live API tools. You can call tools to fetch current panchang, live planetary positions, daily timing predictions, or look up locations. Answer questions about the person below based on their birth chart. Be specific, reference actual planets/yogas/dasas from the data. Keep answers concise unless more detail is requested.
 
 BIRTH CHART DATA:
 ${_aiProfileContext}`;
 
-            const messages = [
+            const endpointSel = document.getElementById('ai_endpoint');
+            const isAzure = endpointSel.value === 'azure';
+            const endpoint = endpointSel.selectedOptions[0].dataset.url;
+            const model = document.getElementById('ai_model').value;
+
+            const headers = { 'Content-Type': 'application/json' };
+            if (isAzure) {
+                headers['api-key'] = apiKey;
+            } else {
+                headers['Authorization'] = `Bearer ${apiKey}`;
+            }
+
+            // Build the working message list for this turn (tool rounds expand it)
+            let messages = [
                 { role: 'system', content: systemPrompt },
                 ..._aiChatHistory
             ];
 
             try {
-                const endpointSel = document.getElementById('ai_endpoint');
-                const isAzure = endpointSel.value === 'azure';
-                const endpoint = endpointSel.selectedOptions[0].dataset.url;
-                const model = document.getElementById('ai_model').value;
+                for (let round = 0; round < 5; round++) {
+                    const body = isAzure
+                        ? { messages, tools: AI_TOOLS, tool_choice: 'auto', max_tokens: 1000, temperature: 0.7 }
+                        : { model, messages, tools: AI_TOOLS, tool_choice: 'auto', max_tokens: 1000, temperature: 0.7 };
 
-                const headers = { 'Content-Type': 'application/json' };
-                if (isAzure) {
-                    headers['api-key'] = apiKey;
-                } else {
-                    headers['Authorization'] = `Bearer ${apiKey}`;
+                    const resp = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error?.message || `HTTP ${resp.status}`);
+                    }
+
+                    const data = await resp.json();
+                    const assistantMsg = data.choices?.[0]?.message;
+                    if (!assistantMsg) throw new Error('No message in response');
+
+                    // ── Tool use branch ──────────────────────────────────────
+                    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+                        messages.push(assistantMsg); // include tool_calls in history
+
+                        const toolNames = assistantMsg.tool_calls
+                            .map(tc => tc.function.name.replace(/^(mcp|rest)_/, '').replace(/_/g, ' '))
+                            .join(', ');
+                        thinkingDiv.textContent = `🔧 Calling: ${toolNames}…`;
+
+                        // Execute all tool calls in parallel
+                        const settled = await Promise.allSettled(
+                            assistantMsg.tool_calls.map(async (tc) => {
+                                const args = JSON.parse(tc.function.arguments);
+                                const result = await dispatchAiToolCall(tc.function.name, args);
+                                return { id: tc.id, result };
+                            })
+                        );
+
+                        // Append tool results
+                        for (let i = 0; i < settled.length; i++) {
+                            const tc = assistantMsg.tool_calls[i];
+                            const s = settled[i];
+                            const content = s.status === 'fulfilled'
+                                ? JSON.stringify(s.value)
+                                : JSON.stringify({ error: s.reason?.message || 'Tool call failed' });
+                            messages.push({ role: 'tool', tool_call_id: tc.id, content });
+                        }
+
+                        thinkingDiv.textContent = '⏳ Processing results…';
+                        continue; // next round with tool results included
+                    }
+
+                    // ── Normal text response ─────────────────────────────────
+                    const reply = assistantMsg.content || 'No response received.';
+                    _aiChatHistory.push({ role: 'assistant', content: reply });
+                    thinkingDiv.textContent = reply;
+                    return;
                 }
-                // Azure embeds model in URL; other endpoints need it in body
-                const body = isAzure
-                    ? { messages, max_tokens: 600, temperature: 0.7 }
-                    : { model, messages, max_tokens: 600, temperature: 0.7 };
-
-                const resp = await fetch(endpoint, {
-                    method: 'POST',
-                    headers,
-                    body: JSON.stringify(body)
-                });
-
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error?.message || `HTTP ${resp.status}`);
-                }
-
-                const data = await resp.json();
-                const reply = data.choices?.[0]?.message?.content || 'No response received.';
-                _aiChatHistory.push({ role: 'assistant', content: reply });
-                thinkingDiv.textContent = reply;
+                throw new Error('Exceeded maximum tool-call rounds');
             } catch (e) {
                 thinkingDiv.textContent = `❌ Error: ${e.message}`;
                 thinkingDiv.style.background = '#ffebee';
