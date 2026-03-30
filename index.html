@@ -878,7 +878,8 @@
     </div>
     
     <script>
-        const DEFAULT_API_BASE = 'https://tattva-api-ap34h5ieya-uc.a.run.app/api/v1';
+        const DEFAULT_API_BASE = 'http://localhost:8000/api/v1';
+        const CLOUD_RUN_API_BASE = 'https://tattva-api-ap34h5ieya-uc.a.run.app/api/v1';
         const API_BASE_STORAGE_KEY = 'tattvaApiBaseV1';
 
         function getApiBase() {
@@ -923,7 +924,7 @@
 
         function setPreset(preset) {
             const presets = {
-                cloudrun: DEFAULT_API_BASE,
+                cloudrun: CLOUD_RUN_API_BASE,
                 localhost: 'http://localhost:8000/api/v1'
             };
             const value = presets[preset];
@@ -1274,6 +1275,11 @@ ${_aiProfileContext}`;
             // Detect file:// and show banner
             if (window.location.protocol === 'file:') {
                 document.getElementById('fileBanner').style.display = 'block';
+            }
+            // If localStorage still points at the old dead Cloud Run URL, reset to localhost default
+            const saved = localStorage.getItem(API_BASE_STORAGE_KEY);
+            if (saved && saved.includes('tattva-api-ap34h5ieya-uc.a.run.app')) {
+                localStorage.removeItem(API_BASE_STORAGE_KEY);
             }
             loadSavedProfilesList();
             initApiBaseUi();
