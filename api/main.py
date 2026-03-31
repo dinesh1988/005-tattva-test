@@ -2418,6 +2418,239 @@ async def get_single_planet_avastha(
 
 
 # =============================================================================
+# Jaimini Astrology
+# =============================================================================
+
+@app.get("/api/v1/jaimini/karakas", tags=["Jaimini"])
+def jaimini_karakas(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns Chara Karakas (temporal significators) for the birth chart.
+
+    Ranks the 7 classical planets by longitude degree within sign to assign
+    Atmakaraka, Amatyakaraka, Bhratrukaraka, Matrukaraka, Putrakaraka,
+    Gnatikaraka, and Darakaraka.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.jaimini import get_chara_karakas
+
+    time = _make_astro_time(dt, lat, lon)
+    planet_longs = {
+        p.name: get_planet_longitude(p, time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    return {"karakas": get_chara_karakas(planet_longs)}
+
+
+@app.get("/api/v1/jaimini/chara-dasa", tags=["Jaimini"])
+def jaimini_chara_dasa(
+    dt: str,
+    lat: float,
+    lon: float,
+    current_dt: Optional[str] = None,
+):
+    """
+    Returns Chara Dasa (sign-based) timeline and current sub-period.
+
+    - **dt**: Birth datetime (ISO 8601)
+    - **lat / lon**: Birth coordinates
+    - **current_dt**: Reference datetime for current dasa (defaults to now)
+    """
+    from logic.jaimini import get_chara_dasa, get_chara_dasa_antardasa
+    from logic.shadbala import datetime_to_jd
+    from datetime import timezone
+
+    time = _make_astro_time(dt, lat, lon)
+    planet_longs = {
+        p.name: get_planet_longitude(p, time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    lagna_long = get_lagnam(time)
+    birth_jd = datetime_to_jd(time.datetime)
+
+    if current_dt:
+        cur_time = _make_astro_time(current_dt, lat, lon)
+        current_jd = datetime_to_jd(cur_time.datetime)
+    else:
+        current_jd = datetime_to_jd(datetime.now(timezone.utc))
+
+    dasa = get_chara_dasa(lagna_long, planet_longs, birth_jd, current_jd)
+
+    # Compute antardasa for the current dasa period
+    cd = dasa["current_dasa"]
+    lagna_sign = dasa["lagna_sign"]
+    antardasa = get_chara_dasa_antardasa(
+        cd["sign"], lagna_sign, planet_longs,
+        cd["years"], dasa["years_into_dasa"]
+    )
+
+    return {
+        "lagna_sign": dasa["lagna_sign"],
+        "lagna_name": dasa["lagna_name"],
+        "years_elapsed": dasa["years_elapsed"],
+        "years_into_dasa": dasa["years_into_dasa"],
+        "years_remaining": dasa["years_remaining"],
+        "current_dasa": dasa["current_dasa"],
+        "current_antardasa": antardasa,
+        "dasa_periods": dasa["dasa_periods"],
+    }
+
+
+@app.get("/api/v1/jaimini/arudhas", tags=["Jaimini"])
+def jaimini_arudhas(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns all 12 Arudha Padas (A1–A12) for the birth chart.
+
+    Arudha Lagna (A1) represents the perceived self; each Arudha reflects
+    the public image of that house's significations.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.jaimini import get_all_arudhas
+
+    time = _make_astro_time(dt, lat, lon)
+    planet_longs = {
+        p.name: get_planet_longitude(p, time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    lagna_long = get_lagnam(time)
+    lagna_sign = int(lagna_long / 30)
+    return {"arudhas": get_all_arudhas(lagna_sign, planet_longs)}
+
+
+# =============================================================================
+# Varshaphal (Solar Return / Annual Horoscope)
+# =============================================================================
+
+@app.get("/api/v1/varshaphal", tags=["Varshaphal"])
+def varshaphal(
+    dt: str,
+    lat: float,
+    lon: float,
+    year: Optional[int] = None,
+):
+    """
+    Returns the Varshaphal (annual horoscope / solar return) for a given year.
+
+    Computes the solar return chart for the requested year and derives the
+    Muntha, Year Lord, and key Sahams.
+
+    - **dt**: Birth datetime (ISO 8601)
+    - **lat / lon**: Birth coordinates
+    - **year**: Target Varsha year (defaults to current year)
+    """
+    from logic.varshaphal import get_varshaphal
+    from logic.shadbala import datetime_to_jd
+    from datetime import timezone
+
+    birth_time = _make_astro_time(dt, lat, lon)
+    birth_dt = birth_time.datetime
+    birth_jd = datetime_to_jd(birth_dt)
+    natal_sun_long = get_planet_longitude(Planet.Sun, birth_time)
+    natal_planet_longs = {
+        p.name: get_planet_longitude(p, birth_time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    birth_lagna_long = get_lagnam(birth_time)
+
+    target_year = year if year is not None else datetime.now(timezone.utc).year
+
+    # Compute solar return JD (avoids the buggy get_solar_return_jd stub)
+    solar_return_jd = birth_jd + (target_year - birth_dt.year) * 365.2422
+    solar_return_dt = datetime.fromtimestamp(
+        (solar_return_jd - 2440587.5) * 86400, tz=timezone.utc
+    )
+
+    varsha_time = AstroTime(solar_return_dt, lat, lon)
+    varsha_lagna_long = get_lagnam(varsha_time)
+    varsha_planet_longs = {
+        p.name: get_planet_longitude(p, varsha_time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    # Weekday: Python weekday() returns 0=Monday; Varshaphal uses 0=Sunday
+    varsha_weekday = (solar_return_dt.weekday() + 1) % 7
+
+    result = get_varshaphal(
+        birth_dt, birth_lagna_long, natal_sun_long,
+        natal_planet_longs, target_year,
+        varsha_lagna_long, varsha_planet_longs, varsha_weekday,
+    )
+    return result
+
+
+# =============================================================================
+# Lordship (House Lords)
+# =============================================================================
+
+@app.get("/api/v1/lordship", tags=["Lordship"])
+def lordship_all(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the ruling planet and sign for each of the 12 houses.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.lordship import get_all_house_lords, get_house_sign, SIGN_NAMES as _SIGN_NAMES
+
+    time = _make_astro_time(dt, lat, lon)
+    lords = get_all_house_lords(time)
+    result = {}
+    for house_num, planet in lords.items():
+        sign_idx = get_house_sign(house_num, time)
+        result[str(house_num)] = {
+            "lord": planet.name,
+            "sign_index": sign_idx,
+            "sign": _SIGN_NAMES[sign_idx],
+        }
+    return {"houses": result}
+
+
+@app.get("/api/v1/lordship/{planet_name}", tags=["Lordship"])
+def lordship_by_planet(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the houses ruled by a given planet.
+
+    - **planet_name**: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.lordship import get_houses_ruled_by_planet
+
+    name_map = {p.name.lower(): p for p in Planet}
+    p = name_map.get(planet_name.lower())
+    if p is None:
+        raise HTTPException(status_code=422, detail=f"Unknown planet: {planet_name}")
+
+    time = _make_astro_time(dt, lat, lon)
+    houses = get_houses_ruled_by_planet(p, time)
+    return {"planet": p.name, "houses_ruled": houses}
+
+
+# =============================================================================
 # MCP Server (mounted at /mcp)
 # POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client

@@ -826,6 +826,223 @@ def get_planet_avastha(
 
 
 # ---------------------------------------------------------------------------
+# Jaimini Astrology
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_jaimini(
+    dt: str,
+    lat: float,
+    lon: float,
+    query: str = "all",
+    current_dt: str = "",
+) -> dict:
+    """
+    Jaimini astrology: Chara Karakas, Chara Dasa, and Arudha Padas.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1990-06-15T10:30:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+        query: What to return — "karakas", "chara_dasa", "arudhas", or "all" (default)
+        current_dt: Reference datetime for current Chara Dasa (ISO 8601, defaults to now)
+
+    Returns:
+        Dict with requested Jaimini data. "karakas" gives the 7 temporal significators
+        ranked by degree. "chara_dasa" gives the current sign-dasa and antardasa.
+        "arudhas" gives the 12 Arudha Padas.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.calculate import get_planet_longitude, get_lagnam
+    from logic.jaimini import get_chara_karakas, get_chara_dasa, get_chara_dasa_antardasa, get_all_arudhas
+    from logic.shadbala import datetime_to_jd
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    classical_planets = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                         Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    planet_longs = {p.name: get_planet_longitude(p, time) for p in classical_planets}
+    lagna_long = get_lagnam(time)
+
+    result = {}
+
+    if query in ("karakas", "all"):
+        result["karakas"] = get_chara_karakas(planet_longs)
+
+    if query in ("chara_dasa", "all"):
+        birth_jd = datetime_to_jd(birth_dt)
+        if current_dt:
+            cur_dt = datetime.fromisoformat(current_dt)
+            if cur_dt.tzinfo is None:
+                cur_dt = cur_dt.replace(tzinfo=timezone.utc)
+            current_jd = datetime_to_jd(cur_dt)
+        else:
+            current_jd = datetime_to_jd(datetime.now(timezone.utc))
+        dasa = get_chara_dasa(lagna_long, planet_longs, birth_jd, current_jd)
+        cd = dasa["current_dasa"]
+        antardasa = get_chara_dasa_antardasa(
+            cd["sign"], dasa["lagna_sign"], planet_longs,
+            cd["years"], dasa["years_into_dasa"]
+        )
+        result["chara_dasa"] = {
+            "lagna_sign": dasa["lagna_sign"],
+            "lagna_name": dasa["lagna_name"],
+            "years_elapsed": dasa["years_elapsed"],
+            "years_into_dasa": dasa["years_into_dasa"],
+            "years_remaining": dasa["years_remaining"],
+            "current_dasa": dasa["current_dasa"],
+            "current_antardasa": antardasa,
+            "dasa_periods": dasa["dasa_periods"],
+        }
+
+    if query in ("arudhas", "all"):
+        lagna_sign = int(lagna_long / 30)
+        result["arudhas"] = get_all_arudhas(lagna_sign, planet_longs)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Varshaphal (Solar Return / Annual Horoscope)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_varshaphal(
+    dt: str,
+    lat: float,
+    lon: float,
+    year: int = 0,
+) -> dict:
+    """
+    Varshaphal (annual horoscope / solar return) for a given year.
+
+    Computes the solar return chart and derives the Muntha, Year Lord,
+    and key Sahams for the requested Varsha year.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1990-06-15T10:30:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+        year: Target Varsha year (0 = current year)
+
+    Returns:
+        Dict with varsha_year, age, varsha_lagna, muntha, year_lord,
+        muntha_lord_bala, key_sahams, and year_quality.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.calculate import get_planet_longitude, get_lagnam
+    from logic.varshaphal import get_varshaphal as _get_varshaphal
+    from logic.shadbala import datetime_to_jd
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    birth_time = AstroTime(birth_dt, lat, lon)
+    birth_jd = datetime_to_jd(birth_dt)
+
+    natal_sun_long = get_planet_longitude(Planet.Sun, birth_time)
+    natal_planet_longs = {
+        p.name: get_planet_longitude(p, birth_time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    birth_lagna_long = get_lagnam(birth_time)
+
+    target_year = year if year else datetime.now(timezone.utc).year
+
+    # Compute solar return JD directly (avoids buggy get_solar_return_jd stub)
+    solar_return_jd = birth_jd + (target_year - birth_dt.year) * 365.2422
+    solar_return_dt = datetime.fromtimestamp(
+        (solar_return_jd - 2440587.5) * 86400, tz=timezone.utc
+    )
+
+    varsha_time = AstroTime(solar_return_dt, lat, lon)
+    varsha_lagna_long = get_lagnam(varsha_time)
+    varsha_planet_longs = {
+        p.name: get_planet_longitude(p, varsha_time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    # Python weekday(): 0=Monday → convert to Varshaphal convention: 0=Sunday
+    varsha_weekday = (solar_return_dt.weekday() + 1) % 7
+
+    return _get_varshaphal(
+        birth_dt, birth_lagna_long, natal_sun_long,
+        natal_planet_longs, target_year,
+        varsha_lagna_long, varsha_planet_longs, varsha_weekday,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Lordship (House Lords)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_house_lords(
+    dt: str,
+    lat: float,
+    lon: float,
+    planet: str = "",
+) -> dict:
+    """
+    Returns house lordship information for the birth chart.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1990-06-15T10:30:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+        planet: Optional planet name (Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn).
+                When provided, returns only the houses ruled by that planet.
+                When omitted, returns the lord and sign for all 12 houses.
+
+    Returns:
+        When planet is empty: {"houses": {"1": {"lord": "Mars", "sign": "Aries"}, ...}}
+        When planet is given: {"planet": "Mars", "houses_ruled": [1, 8]}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.lordship import get_all_house_lords, get_house_sign, get_houses_ruled_by_planet, SIGN_NAMES as _SIGN_NAMES
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    if planet:
+        name_map = {p.name.lower(): p for p in Planet}
+        p = name_map.get(planet.lower())
+        if p is None:
+            return {"error": f"Unknown planet: {planet}"}
+        houses = get_houses_ruled_by_planet(p, time)
+        return {"planet": p.name, "houses_ruled": houses}
+
+    lords = get_all_house_lords(time)
+    result = {}
+    for house_num, lord_planet in lords.items():
+        sign_idx = get_house_sign(house_num, time)
+        result[str(house_num)] = {
+            "lord": lord_planet.name,
+            "sign_index": sign_idx,
+            "sign": _SIGN_NAMES[sign_idx],
+        }
+    return {"houses": result}
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
