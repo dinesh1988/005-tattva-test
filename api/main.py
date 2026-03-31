@@ -2233,6 +2233,191 @@ async def api_ghataka(
 
 
 # =============================================================================
+# Shadbala, Yogas, Avastha Extensions
+# =============================================================================
+
+from logic.shadbala import get_shadbala_summary, get_shadbala_pinda, datetime_to_jd
+from logic.yogas import get_all_yogas, get_occurring_yogas, yoga_summary
+from logic.avastha import get_all_avasthas
+
+# ------------------------------------------------------------------
+# 8. Shadbala (all 7 planets)  GET /api/v1/shadbala
+# ------------------------------------------------------------------
+@app.get("/api/v1/shadbala", tags=["Shadbala"])
+async def get_all_shadbala(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns Shadbala (six-fold strength) summary for all 7 classical planets.
+
+    Includes Sthana, Dig, Kaala, Cheshta, Naisargika, and Drik bala.
+    Each planet is evaluated against its required minimum Rupa thresholds.
+
+    - **dt**: ISO 8601 datetime string (e.g. `1988-06-07T20:40:00+05:30`)
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    return get_shadbala_summary(time.datetime, lat, lon)
+
+
+# ------------------------------------------------------------------
+# 9. Shadbala (single planet)  GET /api/v1/shadbala/{planet_name}
+# ------------------------------------------------------------------
+@app.get("/api/v1/shadbala/{planet_name}", tags=["Shadbala"])
+async def get_single_planet_shadbala(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns full Shadbala breakdown for a single planet.
+
+    - **planet_name**: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    valid = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+    name = planet_name.capitalize()
+    if name not in valid:
+        raise HTTPException(status_code=422, detail=f"Planet must be one of: {valid}")
+    time = _make_astro_time(dt, lat, lon)
+    jd = datetime_to_jd(time.datetime)
+    return get_shadbala_pinda(name, jd, lat, lon)
+
+
+# ------------------------------------------------------------------
+# 10. Yogas (all + occurring flag)  GET /api/v1/yogas
+# ------------------------------------------------------------------
+@app.get("/api/v1/yogas", tags=["Yogas"])
+async def get_yogas(
+    dt: str,
+    lat: float,
+    lon: float,
+    only_occurring: bool = False,
+):
+    """
+    Returns all 21 implemented Vedic yogas with their occurrence status.
+
+    Includes Pancha Mahapurusha, GajaKesari, Raja, Dhana, and Viparita yogas.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    - **only_occurring**: If true, returns only currently active yogas
+    """
+    time = _make_astro_time(dt, lat, lon)
+    yogas = get_occurring_yogas(time) if only_occurring else get_all_yogas(time)
+    return [
+        {
+            "name": y.name,
+            "nature": y.nature.value,
+            "occurring": y.occurring,
+            "description": y.description,
+            "condition": y.condition,
+            "strength": y.strength,
+        }
+        for y in yogas
+    ]
+
+
+# ------------------------------------------------------------------
+# 11. Yoga Summary  GET /api/v1/yogas/summary
+# ------------------------------------------------------------------
+@app.get("/api/v1/yogas/summary", tags=["Yogas"])
+async def get_yoga_summary(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns a concise count-based summary of all yogas.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    return yoga_summary(time)
+
+
+# ------------------------------------------------------------------
+# 12. Avastha (all planets)  GET /api/v1/avastha
+# ------------------------------------------------------------------
+@app.get("/api/v1/avastha", tags=["Avastha"])
+async def get_all_planet_avastha(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns all five avastha (planetary state) categories for every planet.
+
+    Avastha types: Bala (age), Jagradadi (alertness), Deeptadi (brightness),
+    Lajjitadi (dignity), and Shayanadi (posture).
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    from logic.calculate import get_planet_longitude as _gpl
+    from logic.consts import Planet
+    from logic.house_queries import get_planet_house as _gph, get_planets_in_sign as _gpis, get_planet_sign_num as _gpsn
+
+    all_planets = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]
+    sun_long = _gpl(Planet.Sun, time)
+
+    result = {}
+    for p in all_planets:
+        long = _gpl(p, time)
+        house = _gph(p, time)
+        sign_num = _gpsn(p, time)
+        conjuncts = [other.name for other in all_planets
+                     if other != p and _gpsn(other, time) == sign_num]
+        result[p.name] = get_all_avasthas(p.name, long, sun_long, house, conjuncts)
+    return result
+
+
+# ------------------------------------------------------------------
+# 13. Avastha (single planet)  GET /api/v1/avastha/{planet_name}
+# ------------------------------------------------------------------
+@app.get("/api/v1/avastha/{planet_name}", tags=["Avastha"])
+async def get_single_planet_avastha(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns all avastha states for a single planet.
+
+    - **planet_name**: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu, Ketu
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.calculate import get_planet_longitude as _gpl
+    from logic.consts import Planet
+    from logic.house_queries import get_planet_house as _gph, get_planet_sign_num as _gpsn
+
+    name_map = {p.name.lower(): p for p in Planet}
+    p = name_map.get(planet_name.lower())
+    if p is None:
+        raise HTTPException(status_code=422, detail=f"Unknown planet: {planet_name}")
+
+    time = _make_astro_time(dt, lat, lon)
+    all_planets = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]
+    sun_long = _gpl(Planet.Sun, time)
+    long = _gpl(p, time)
+    house = _gph(p, time)
+    sign_num = _gpsn(p, time)
+    conjuncts = [other.name for other in all_planets
+                 if other != p and _gpsn(other, time) == sign_num]
+    return get_all_avasthas(p.name, long, sun_long, house, conjuncts)
+
+
+# =============================================================================
 # MCP Server (mounted at /mcp)
 # POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client
