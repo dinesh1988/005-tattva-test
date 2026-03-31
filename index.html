@@ -205,17 +205,115 @@
             padding: 5px 15px;
             background: #667eea;
             color: white;
-            border-radius: 5px;
-            text-decoration: none;
-            font-size: 14px;
-            margin-top: 10px;
-            cursor: pointer;
         }
+
+        /* ── Dark Mode Toggle Button ── */
+        #darkToggle {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: auto;
+            padding: 7px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #darkToggle:hover { background: rgba(255,255,255,0.35); }
+
+        /* ── Dark Mode Variables ── */
+        [data-theme="dark"] {
+            --bg-body:      #1a1a2e;
+            --bg-container: #16213e;
+            --bg-content:   #0f3460;
+            --bg-section:   #1a1a2e;
+            --bg-input:     #1e2a45;
+            --bg-result:    #16213e;
+            --bg-example:   #1e2a45;
+            --bg-yoga:      #1e2a45;
+            --text-main:    #e0e0e0;
+            --text-label:   #b0b8d0;
+            --text-muted:   #8892aa;
+            --border-input: #3a4a6b;
+        }
+        [data-theme="dark"] body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+        }
+        [data-theme="dark"] .container {
+            background: var(--bg-container);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+        }
+        [data-theme="dark"] .content {
+            background: var(--bg-container);
+        }
+        [data-theme="dark"] label {
+            color: var(--text-label);
+        }
+        [data-theme="dark"] input,
+        [data-theme="dark"] select,
+        [data-theme="dark"] textarea {
+            background: var(--bg-input);
+            border-color: var(--border-input);
+            color: var(--text-main);
+        }
+        [data-theme="dark"] input:focus,
+        [data-theme="dark"] select:focus {
+            border-color: #667eea;
+        }
+        [data-theme="dark"] .result {
+            background: var(--bg-result);
+        }
+        [data-theme="dark"] .result-section {
+            background: var(--bg-section);
+        }
+        [data-theme="dark"] .result-section h3 {
+            color: var(--text-label);
+        }
+        [data-theme="dark"] .result-section p {
+            color: var(--text-muted);
+        }
+        [data-theme="dark"] .example-data {
+            background: var(--bg-example) !important;
+            color: var(--text-main);
+        }
+        [data-theme="dark"] .example-data p,
+        [data-theme="dark"] .example-data strong {
+            color: var(--text-label);
+        }
+        [data-theme="dark"] .yoga-item {
+            background: var(--bg-yoga);
+            color: var(--text-main);
+        }
+        [data-theme="dark"] .error {
+            background: #2a1515;
+            border-color: #7a3333;
+            color: #ff8080;
+        }
+        [data-theme="dark"] .spinner {
+            border-color: #2a3a5a;
+            border-top-color: #667eea;
+        }
+        /* AI chat bubbles */
+        [data-theme="dark"] .ai-bubble-user {
+            background: #1e3a5f !important;
+            color: #c8d8f0 !important;
+        }
+        [data-theme="dark"] .ai-bubble-assistant {
+            background: #1a2a3a !important;
+            color: #d0dae8 !important;
+        }
+        /* inline style overrides for hard-coded bg colours */
+        [data-theme="dark"] #api_status { color: var(--text-muted) !important; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header" style="position:relative;">
+            <button id="darkToggle" onclick="toggleDark()" title="Toggle dark mode">🌙 Dark</button>
             <h1>🌟 Tattva Astrology</h1>
             <p>Complete Vedic Astrology Profile Generator</p>
         </div>
@@ -1271,7 +1369,20 @@ ${_aiProfileContext}`;
         // ── End AI Chat ───────────────────────────────────────────────────────
 
         // Load saved profiles on page load
+        function toggleDark() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const next = isDark ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', next);
+            document.getElementById('darkToggle').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+            localStorage.setItem('tattva_theme', next);
+        }
+
         window.onload = function() {
+            // Restore dark mode preference
+            const savedTheme = localStorage.getItem('tattva_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.getElementById('darkToggle').textContent = savedTheme === 'dark' ? '☀️ Light' : '🌙 Dark';
+
             // Detect file:// and show banner
             if (window.location.protocol === 'file:') {
                 document.getElementById('fileBanner').style.display = 'block';
