@@ -832,10 +832,10 @@ async def get_complete_profile(birth_data: BirthData):
             'number': yoga_num,
             'interpretation': "Daily yoga indicates auspicious combinations affecting success and fortune."
         },
-        'weekday': birth_datetime.strftime('%A'),
+        'weekday': birth_datetime_tz.strftime('%A'),
         'weekday_planet': {'Monday': 'Moon', 'Tuesday': 'Mars', 'Wednesday': 'Mercury', 
                            'Thursday': 'Jupiter', 'Friday': 'Venus', 'Saturday': 'Saturn', 
-                           'Sunday': 'Sun'}[birth_datetime.strftime('%A')]
+                           'Sunday': 'Sun'}[birth_datetime_tz.strftime('%A')]
     }
     
     # 4. DASA PERIODS with timing
@@ -848,7 +848,7 @@ async def get_complete_profile(birth_data: BirthData):
     dasa_schedule = get_vimshottari_dasa_schedule(nakshatra_num, nakshatra_pct, birth_datetime_tz)
     
     current_year = datetime.now().year
-    birth_year = birth_datetime.year
+    birth_year = birth_datetime_tz.year
     age = current_year - birth_year
     
     dasa_interpretation = {
@@ -889,7 +889,7 @@ async def get_complete_profile(birth_data: BirthData):
     
     # 6. NUMEROLOGY
     from logic.numerology import get_full_numerology
-    numerology = get_full_numerology(birth_data.name, birth_datetime)
+    numerology = get_full_numerology(birth_data.name, birth_datetime_tz)
     
     # 7. ASHTAKAVARGA (Computationally intensive - store this!)
     # Get BAV (Bhinnashtakavarga) for all 7 planets
@@ -1944,6 +1944,303 @@ async def get_cached_daily_prediction(user_id: str, date: str):
     if not prediction:
         raise HTTPException(status_code=404, detail="Prediction not found for this date")
     return prediction
+
+
+# =============================================================================
+# Planet Relationships, Aspects, Dignity, House Queries, Muhurtha Extensions
+# =============================================================================
+
+from logic.planet_relations import (
+    get_natural_relationship,
+    get_combined_relationship,
+    get_all_planet_relationships,
+)
+from logic.aspects import (
+    get_signs_planet_is_aspecting,
+    is_planet_aspecting_planet,
+    get_planets_aspecting_planet,
+    get_full_aspect_grid,
+)
+from logic.dignity import get_planet_dignity, get_all_planet_dignities
+from logic.house_queries import (
+    get_planet_house,
+    get_all_planet_houses,
+    get_house_occupancy_map,
+)
+from logic.muhurtha import (
+    get_chandrabala,
+    get_panchaka,
+    get_ghataka_chakra,
+)
+from logic.nakshatra import get_nakshatra
+from logic.panchang import get_tithi
+
+
+# ---- Helper: build AstroTime from query params ----
+def _make_astro_time(dt_str: str, lat: float, lon: float) -> AstroTime:
+    """Parse ISO datetime string (UTC) into AstroTime."""
+    try:
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Invalid datetime format: {dt_str}. Use ISO 8601 (e.g. 1988-06-07T20:40:00+05:30)")
+    return AstroTime(dt, lat, lon)
+
+
+# ------------------------------------------------------------------
+# 1. Planet-to-Planet Relationships  GET /api/v1/relationships
+# ------------------------------------------------------------------
+@app.get("/api/v1/relationships", tags=["Planet Relationships"])
+async def get_planet_relationships(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the full 9×9 combined (natural + temporary) planet relationship grid.
+
+    - **dt**: ISO 8601 datetime string (e.g. `1988-06-07T20:40:00+05:30`)
+    - **lat**: Geographic latitude
+    - **lon**: Geographic longitude
+    """
+    time = _make_astro_time(dt, lat, lon)
+    grid = get_all_planet_relationships(time)
+    # Convert Planet enum keys to strings for JSON serialization
+    serialised = {
+        main.name: {sec.name: rel for sec, rel in inner.items()}
+        for main, inner in grid.items()
+    }
+    return {"relationships": serialised}
+
+
+# ------------------------------------------------------------------
+# 2. Graha Drishti (Aspects)  GET /api/v1/aspects
+# ------------------------------------------------------------------
+@app.get("/api/v1/aspects", tags=["Planet Aspects"])
+async def get_aspect_grid(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the full Graha Drishti (planetary aspect) grid.
+    Each cell [transmitter][receiver] is `true` if the transmitter aspects the receiver.
+
+    Special aspects: Saturn→3rd,10th; Jupiter→5th,9th; Mars→4th,8th; all planets→7th.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    raw = get_full_aspect_grid(time)
+    serialised = {
+        tx.name: {rx.name: val for rx, val in inner.items()}
+        for tx, inner in raw.items()
+    }
+    return {"aspects": serialised}
+
+
+@app.get("/api/v1/aspects/planet/{planet_name}", tags=["Planet Aspects"])
+async def get_aspects_for_planet(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns which planets are aspected by the given planet, and which planets aspect it.
+
+    - **planet_name**: e.g. `Sun`, `Moon`, `Mars`, `Jupiter`, `Saturn`, `Mercury`, `Venus`, `Rahu`, `Ketu`
+    """
+    try:
+        planet = Planet[planet_name]
+    except KeyError:
+        raise HTTPException(status_code=422, detail=f"Unknown planet: {planet_name}")
+    time = _make_astro_time(dt, lat, lon)
+    aspecting = get_signs_planet_is_aspecting(planet, time)  # sign nums
+    aspected_by = [p.name for p in get_planets_aspecting_planet(planet, time)]
+    return {
+        "planet": planet_name,
+        "aspects_signs": aspecting,
+        "aspected_by_planets": aspected_by,
+    }
+
+
+# ------------------------------------------------------------------
+# 3. Planetary Dignity  GET /api/v1/dignity
+# ------------------------------------------------------------------
+@app.get("/api/v1/dignity", tags=["Planet Dignity"])
+async def get_dignity_all(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the dignity of all 9 planets at the given time.
+
+    Dignity levels (strongest → weakest):
+    `ExaltedDegree`, `Exalted`, `OwnSign`, `Moolatrikona`, `Neutral`, `Debilitated`, `DebilitatedDegree`
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    return {"dignities": get_all_planet_dignities(time)}
+
+
+@app.get("/api/v1/dignity/{planet_name}", tags=["Planet Dignity"])
+async def get_dignity_single(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """Returns the dignity of a single planet."""
+    try:
+        planet = Planet[planet_name]
+    except KeyError:
+        raise HTTPException(status_code=422, detail=f"Unknown planet: {planet_name}")
+    time = _make_astro_time(dt, lat, lon)
+    return {"planet": planet_name, "dignity": get_planet_dignity(planet, time)}
+
+
+# ------------------------------------------------------------------
+# 4. House Queries  GET /api/v1/houses
+# ------------------------------------------------------------------
+@app.get("/api/v1/houses", tags=["House Queries"])
+async def get_all_houses(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns which whole-sign house each planet occupies, plus a full
+    house→planet occupancy map.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    return {
+        "planet_houses": get_all_planet_houses(time),
+        "house_occupancy": get_house_occupancy_map(time),
+    }
+
+
+@app.get("/api/v1/houses/planet/{planet_name}", tags=["House Queries"])
+async def get_house_for_planet(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """Returns which house (1-12) the given planet occupies."""
+    try:
+        planet = Planet[planet_name]
+    except KeyError:
+        raise HTTPException(status_code=422, detail=f"Unknown planet: {planet_name}")
+    time = _make_astro_time(dt, lat, lon)
+    return {"planet": planet_name, "house": get_planet_house(planet, time)}
+
+
+# ------------------------------------------------------------------
+# 5. Chandrabala  GET /api/v1/muhurtha/chandrabala
+# ------------------------------------------------------------------
+@app.get("/api/v1/muhurtha/chandrabala", tags=["Muhurtha"])
+async def api_chandrabala(
+    birth_moon_sign: int,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Calculates Chandrabala — Moon's positional strength for selecting auspicious times.
+
+    - **birth_moon_sign**: Janma Rasi sign number (1=Aries … 12=Pisces)
+    - **dt**: ISO 8601 datetime string for the transit moment
+    - **lat / lon**: Geographic coordinates for the transit moment
+    """
+    time = _make_astro_time(dt, lat, lon)
+    transit_moon_long = get_planet_longitude(Planet.Moon, time)
+    from logic.rasi import get_rasi as _get_rasi
+    _, transit_moon_sign = _get_rasi(transit_moon_long)
+    result = get_chandrabala(birth_moon_sign, transit_moon_sign)
+    result["birth_moon_sign"] = birth_moon_sign
+    result["transit_moon_sign"] = transit_moon_sign
+    return result
+
+
+# ------------------------------------------------------------------
+# 6. Panchaka  GET /api/v1/muhurtha/panchaka
+# ------------------------------------------------------------------
+@app.get("/api/v1/muhurtha/panchaka", tags=["Muhurtha"])
+async def api_panchaka(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Calculates Panchaka Dosha for the given moment.
+
+    Returns the Panchaka type (`Shubha`, `Mrityu`, `Agni`, `Raja`, `Chora`, `Roga`)
+    and whether a dosha is present.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates (used for Lagna calculation)
+    """
+    time = _make_astro_time(dt, lat, lon)
+    sun_long  = get_planet_longitude(Planet.Sun,  time)
+    moon_long = get_planet_longitude(Planet.Moon, time)
+    from logic.rasi import get_rasi as _get_rasi
+    from logic.calculate import get_lagnam as _get_lagnam
+    _, lagna_sign_num = _get_rasi(_get_lagnam(time))
+    tithi_name, tithi_num, _ = get_tithi(sun_long, moon_long)
+    nak_name, nak_num, _, _ = get_nakshatra(moon_long)
+    python_weekday = time.datetime.weekday()
+    result = get_panchaka(tithi_num, nak_num, python_weekday, lagna_sign_num)
+    result["tithi"] = tithi_name
+    result["nakshatra"] = nak_name
+    return result
+
+
+# ------------------------------------------------------------------
+# 7. Ghataka Chakra  GET /api/v1/muhurtha/ghataka
+# ------------------------------------------------------------------
+@app.get("/api/v1/muhurtha/ghataka", tags=["Muhurtha"])
+async def api_ghataka(
+    birth_moon_sign: int,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Determines whether the current moment is a Ghataka (inauspicious) period
+    for a person born with the given Moon sign.
+
+    Checks five factors from the Ghataka Chakra table:
+    transit Moon sign, tithi group, weekday, Moon nakshatra, and Lagna sign.
+
+    - **birth_moon_sign**: Janma Rasi sign number (1=Aries … 12=Pisces)
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    time = _make_astro_time(dt, lat, lon)
+    sun_long  = get_planet_longitude(Planet.Sun,  time)
+    moon_long = get_planet_longitude(Planet.Moon, time)
+    from logic.rasi import get_rasi as _get_rasi
+    from logic.calculate import get_lagnam as _get_lagnam
+    _, transit_moon_sign = _get_rasi(moon_long)
+    _, lagna_sign_num    = _get_rasi(_get_lagnam(time))
+    _, tithi_num, _ = get_tithi(sun_long, moon_long)
+    nak_name, _, _, _ = get_nakshatra(moon_long)
+    python_weekday = time.datetime.weekday()
+    return get_ghataka_chakra(
+        birth_moon_sign,
+        transit_moon_sign,
+        tithi_num,
+        python_weekday,
+        nak_name,
+        lagna_sign_num,
+    )
 
 
 # =============================================================================

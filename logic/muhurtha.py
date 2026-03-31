@@ -472,6 +472,263 @@ def get_weekday_lord_activities(weekday: int) -> Dict:
     return WEEKDAY_ACTIVITIES.get(weekday, WEEKDAY_ACTIVITIES[0])
 
 
+# =============================================================================
+# CHANDRABALA — Moon Strength for Transit
+# =============================================================================
+# Ported from Core.cs ~line 2380
+#
+# Count from birth Moon sign to transit Moon sign (Vedic inclusive counting).
+# Result positions 1,3,6,7,10,11 = Good (Bala); all others = Bad.
+
+_CHANDRABALA_GOOD_POSITIONS = {1, 3, 6, 7, 10, 11}
+
+def get_chandrabala(birth_moon_sign_num: int, transit_moon_sign_num: int) -> Dict:
+    """
+    Calculates Chandrabala (Moon's strength) for choosing auspicious times.
+
+    Args:
+        birth_moon_sign_num:   Janma Rasi — Moon sign number at birth (1-12).
+        transit_moon_sign_num: Current/transit Moon sign number (1-12).
+
+    Returns:
+        {
+            "position":    int  (1-12, Vedic inclusive count),
+            "is_good":     bool,
+            "description": str
+        }
+
+    Ported from Core.cs, VedAstro C# library.
+    """
+    # Vedic inclusive count: same sign = position 1
+    diff = (transit_moon_sign_num - birth_moon_sign_num) % 12
+    position = diff + 1  # 1-12
+
+    is_good = position in _CHANDRABALA_GOOD_POSITIONS
+
+    if is_good:
+        description = f"Chandrabala is good (position {position}). Auspicious for activities."
+    else:
+        description = f"Chandrabala is weak (position {position}). Avoid important new beginnings."
+
+    return {
+        "position": position,
+        "is_good": is_good,
+        "description": description,
+    }
+
+
+# =============================================================================
+# PANCHAKA — Five-fold danger classification
+# =============================================================================
+# Ported from Core.cs Panchaka logic
+#
+# total = lunar_day_num + nakshatra_num + weekday_num + lagna_sign_num
+# remainder = total % 9
+# 0=Shubha, 1=Mrityu, 2=Agni, 3=Shubha, 4=Raja, 5=Shubha, 6=Chora, 7=Shubha, 8=Roga
+
+_PANCHAKA_MAP: Dict[int, str] = {
+    0: "Shubha",
+    1: "Mrityu",   # Death — avoid
+    2: "Agni",     # Fire/destruction — avoid
+    3: "Shubha",   # Auspicious
+    4: "Raja",     # Royal/powerful — generally ok
+    5: "Shubha",   # Auspicious
+    6: "Chora",    # Theft/deceit — avoid
+    7: "Shubha",   # Auspicious
+    8: "Roga",     # Disease — avoid
+}
+
+_PANCHAKA_IS_BAD = {"Mrityu", "Agni", "Chora", "Roga"}
+
+# Weekday numbers per Vedic system: Sunday=1, Monday=2, ... Saturday=7
+# Python weekday(): Monday=0 → Vedic Sunday=1 offset
+def _python_weekday_to_vedic(python_weekday: int) -> int:
+    """Convert Python weekday (Mon=0…Sun=6) to Vedic day number (Sun=1…Sat=7)."""
+    return (python_weekday + 1) % 7 + 1  # Sun=1, Mon=2, Tue=3, … Sat=7
+
+
+def get_panchaka(
+    lunar_day_num: int,
+    nakshatra_num: int,
+    python_weekday: int,
+    lagna_sign_num: int,
+) -> Dict:
+    """
+    Calculates Panchaka Dosha for a given moment.
+
+    Args:
+        lunar_day_num:   Tithi number 1-30.
+        nakshatra_num:   Moon nakshatra number 1-27.
+        python_weekday:  Python weekday (Monday=0 … Sunday=6).
+        lagna_sign_num:  Lagna (Ascendant) sign number 1-12.
+
+    Returns:
+        {
+            "total":       int,
+            "remainder":   int  (0-8),
+            "panchaka":    str  (e.g. 'Shubha', 'Mrityu', ...),
+            "is_dosha":    bool (True when inauspicious),
+            "description": str
+        }
+
+    Ported from Core.cs Panchaka function.
+    """
+    vedic_weekday = _python_weekday_to_vedic(python_weekday)
+    total = lunar_day_num + nakshatra_num + vedic_weekday + lagna_sign_num
+    remainder = total % 9
+    panchaka_name = _PANCHAKA_MAP[remainder]
+    is_dosha = panchaka_name in _PANCHAKA_IS_BAD
+
+    _DESCRIPTIONS = {
+        "Mrityu": "Mrityu Panchaka — danger to life. Avoid travel, surgery, and risky activities.",
+        "Agni":   "Agni Panchaka — risk of fire and accidents. Avoid use of fire and electricity.",
+        "Raja":   "Raja Panchaka — mild caution. Fine for most activities; avoid legal disputes.",
+        "Chora":  "Chora Panchaka — risk of theft or betrayal. Safeguard valuables.",
+        "Roga":   "Roga Panchaka — risk of illness. Avoid exposure and maintain hygiene.",
+        "Shubha": "Shubha — no Panchaka Dosha. Moment is free of this particular blemish.",
+    }
+
+    return {
+        "total": total,
+        "remainder": remainder,
+        "panchaka": panchaka_name,
+        "is_dosha": is_dosha,
+        "description": _DESCRIPTIONS[panchaka_name],
+    }
+
+
+# =============================================================================
+# GHATAKA CHAKRA — Inauspicious sign/time combinations keyed to birth Moon sign
+# =============================================================================
+# Ported from Core.cs lines 1784-1822
+#
+# For each birth Moon sign, five inauspicious markers are defined:
+#   (ghataka_moon_sign, tithi_group, weekday_name, moon_nakshatra, ghataka_lagna)
+#
+# If ANY of the five matches the current moment, it is a Ghataka period.
+
+_GHATAKA_TABLE: Dict[str, tuple] = {
+    # birth_moon_sign: (ghataka_moon_sign, tithi_group, weekday, moon_nakshatra, ghataka_lagna)
+    "Aries":       ("Aries",       "Nanda",  "Sunday",    "Magha",      "Aries"),
+    "Taurus":      ("Virgo",       "Purna",  "Saturday",  "Hasta",      "Taurus"),
+    "Gemini":      ("Aquarius",    "Bhadra", "Monday",    "Swati",      "Cancer"),
+    "Cancer":      ("Leo",         "Bhadra", "Wednesday", "Anuradha",   "Libra"),
+    "Leo":         ("Capricorn",   "Jaya",   "Saturday",  "Mula",       "Capricorn"),
+    "Virgo":       ("Gemini",      "Purna",  "Saturday",  "Sravana",    "Pisces"),
+    "Libra":       ("Sagittarius", "Rikta",  "Thursday",  "Satabhisha", "Virgo"),
+    "Scorpio":     ("Taurus",      "Nanda",  "Friday",    "Revati",     "Taurus"),
+    "Sagittarius": ("Pisces",      "Jaya",   "Friday",    "Ashwini",    "Sagittarius"),
+    "Capricorn":   ("Leo",         "Rikta",  "Tuesday",   "Rohini",     "Aquarius"),
+    "Aquarius":    ("Sagittarius", "Jaya",   "Thursday",  "Ardra",      "Gemini"),
+    "Pisces":      ("Aquarius",    "Purna",  "Thursday",  "Ashlesha",   "Leo"),
+}
+
+# Tithi group membership — matches Core.cs tithi group names
+_TITHI_GROUPS: Dict[str, List[int]] = {
+    "Nanda":  [1, 6, 11],
+    "Bhadra": [2, 7, 12],
+    "Jaya":   [3, 8, 13],
+    "Rikta":  [4, 9, 14],
+    "Purna":  [5, 10, 15],
+}
+
+def _tithi_group_of(tithi_num: int) -> str:
+    """Returns the Nanda/Bhadra/Jaya/Rikta/Purna group of a tithi number (1-30)."""
+    normalized = (tithi_num - 1) % 15 + 1  # collapse Krishnapaksha to 1-15
+    for group_name, members in _TITHI_GROUPS.items():
+        if normalized in members:
+            return group_name
+    return "Unknown"
+
+_WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+# Python weekday Mon=0 … Sun=6 → index offset
+def _python_weekday_to_name(python_weekday: int) -> str:
+    """Convert Python weekday (Mon=0…Sun=6) to day name."""
+    # Python: Mon=0, Tue=1, ..., Sun=6
+    names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    return names[python_weekday % 7]
+
+# Short sign names extracted from RASIS list (strip the Sanskrit part)
+_SIGN_NUM_TO_SHORT: Dict[int, str] = {
+    1: "Aries", 2: "Taurus", 3: "Gemini", 4: "Cancer",
+    5: "Leo", 6: "Virgo", 7: "Libra", 8: "Scorpio",
+    9: "Sagittarius", 10: "Capricorn", 11: "Aquarius", 12: "Pisces",
+}
+_SHORT_TO_SIGN_NUM = {v: k for k, v in _SIGN_NUM_TO_SHORT.items()}
+
+
+def get_ghataka_chakra(
+    birth_moon_sign_num: int,
+    transit_moon_sign_num: int,
+    tithi_num: int,
+    python_weekday: int,
+    moon_nakshatra: str,
+    lagna_sign_num: int,
+) -> Dict:
+    """
+    Determines if the current moment falls under a Ghataka (inauspicious) period
+    for a person born with the given Moon sign.
+
+    Args:
+        birth_moon_sign_num:    Janma Rasi sign number 1-12.
+        transit_moon_sign_num:  Current transit Moon sign number 1-12.
+        tithi_num:              Current tithi number 1-30.
+        python_weekday:         Python weekday (Mon=0 … Sun=6).
+        moon_nakshatra:         Current Moon nakshatra name (e.g. 'Rohini').
+        lagna_sign_num:         Current Lagna sign number 1-12.
+
+    Returns:
+        {
+            "is_ghataka":        bool,
+            "triggered_factors": List[str],   # which of the 5 factors match
+            "ghataka_for_sign":  str,          # birth Moon sign name
+            "table_entry":       Dict          # the Ghataka table row
+        }
+
+    Ported from Core.cs GhatakaChakra logic, lines 1784-1822.
+    """
+    birth_sign_name = _SIGN_NUM_TO_SHORT.get(birth_moon_sign_num, "")
+    if birth_sign_name not in _GHATAKA_TABLE:
+        return {
+            "is_ghataka": False,
+            "triggered_factors": [],
+            "ghataka_for_sign": birth_sign_name,
+            "table_entry": {},
+        }
+
+    gh_moon_sign, gh_tithi_group, gh_weekday, gh_nakshatra, gh_lagna = _GHATAKA_TABLE[birth_sign_name]
+
+    transit_sign_name  = _SIGN_NUM_TO_SHORT.get(transit_moon_sign_num, "")
+    current_tithi_group = _tithi_group_of(tithi_num)
+    current_weekday_name = _python_weekday_to_name(python_weekday)
+    lagna_sign_name    = _SIGN_NUM_TO_SHORT.get(lagna_sign_num, "")
+
+    triggered: List[str] = []
+    if transit_sign_name == gh_moon_sign:
+        triggered.append(f"Moon in Ghataka sign ({gh_moon_sign})")
+    if current_tithi_group == gh_tithi_group:
+        triggered.append(f"Tithi group is Ghataka ({gh_tithi_group})")
+    if current_weekday_name == gh_weekday:
+        triggered.append(f"Weekday is Ghataka ({gh_weekday})")
+    if moon_nakshatra == gh_nakshatra:
+        triggered.append(f"Moon Nakshatra is Ghataka ({gh_nakshatra})")
+    if lagna_sign_name == gh_lagna:
+        triggered.append(f"Lagna is Ghataka sign ({gh_lagna})")
+
+    return {
+        "is_ghataka": len(triggered) > 0,
+        "triggered_factors": triggered,
+        "ghataka_for_sign": birth_sign_name,
+        "table_entry": {
+            "ghataka_moon_sign": gh_moon_sign,
+            "ghataka_tithi_group": gh_tithi_group,
+            "ghataka_weekday": gh_weekday,
+            "ghataka_nakshatra": gh_nakshatra,
+            "ghataka_lagna": gh_lagna,
+        },
+    }
+
+
 # ==================== DEMO ====================
 
 if __name__ == "__main__":
