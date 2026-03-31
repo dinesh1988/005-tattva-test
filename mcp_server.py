@@ -1043,6 +1043,447 @@ def get_house_lords(
 
 
 # ---------------------------------------------------------------------------
+# Planet Relationships
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_planet_relationships(
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """
+    Returns the full 9×9 combined (natural + temporary) planet relationship grid.
+
+    Combined relationship is the sum of natural and temporal relationships,
+    giving values like GreatFriend, Friend, Neutral, Enemy, GreatEnemy.
+
+    Args:
+        dt: Birth/transit datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+
+    Returns:
+        {"relationships": {planet: {other_planet: relationship_label, ...}, ...}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.planet_relations import get_all_planet_relationships
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+    return {"relationships": get_all_planet_relationships(time)}
+
+
+# ---------------------------------------------------------------------------
+# Planet Aspects (Graha Drishti)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_planet_aspects(
+    dt: str,
+    lat: float,
+    lon: float,
+    planet: str = "",
+) -> dict:
+    """
+    Returns Graha Drishti (planetary aspect) information.
+
+    Special aspects: Saturn→3rd,10th; Jupiter→5th,9th; Mars→4th,8th; all→7th.
+
+    Args:
+        dt: Birth/transit datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+        planet: Optional planet name (Sun, Moon, Mars, ...). When given, returns
+                which signs that planet aspects and which planets aspect it.
+                When empty, returns the full 9x9 aspect grid.
+
+    Returns:
+        Full grid {"aspects": {planet: {other: true/false}}} or
+        single-planet {"planet": "Mars", "aspects_signs": [...], "aspected_by_planets": [...]}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.aspects import (
+        get_full_aspect_grid,
+        get_signs_planet_is_aspecting,
+        get_planets_aspecting_planet,
+    )
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    if planet:
+        try:
+            p = Planet[planet]
+        except KeyError:
+            return {"error": f"Unknown planet: {planet}"}
+        return {
+            "planet": planet,
+            "aspects_signs": get_signs_planet_is_aspecting(p, time),
+            "aspected_by_planets": [x.name for x in get_planets_aspecting_planet(p, time)],
+        }
+
+    return {"aspects": get_full_aspect_grid(time)}
+
+
+# ---------------------------------------------------------------------------
+# Planet Dignity
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_chart_dignities(
+    dt: str,
+    lat: float,
+    lon: float,
+    planet: str = "",
+) -> dict:
+    """
+    Returns planetary dignity for the birth chart.
+
+    Dignity levels (strongest → weakest):
+    ExaltedDegree, Exalted, OwnSign, Moolatrikona, Neutral, Debilitated, DebilitatedDegree.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+        planet: Optional planet name. When given, returns only that planet's dignity.
+                When empty, returns all 9 planets.
+
+    Returns:
+        {"dignities": {planet: level}} or {"planet": "...", "dignity": level}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.dignity import get_planet_dignity as _gpd, get_all_planet_dignities
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    if planet:
+        try:
+            p = Planet[planet]
+        except KeyError:
+            return {"error": f"Unknown planet: {planet}"}
+        return {"planet": planet, "dignity": _gpd(p, time)}
+
+    return {"dignities": get_all_planet_dignities(time)}
+
+
+# ---------------------------------------------------------------------------
+# House Positions
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_house_positions(
+    dt: str,
+    lat: float,
+    lon: float,
+    planet: str = "",
+) -> dict:
+    """
+    Returns whole-sign house positions for the birth chart.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+        planet: Optional planet name. When given, returns just that planet's house.
+                When empty, returns all planets' houses plus house occupancy map.
+
+    Returns:
+        {"planet_houses": {...}, "house_occupancy": {...}} or {"planet": "...", "house": N}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.house_queries import get_planet_house, get_all_planet_houses, get_house_occupancy_map
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    if planet:
+        try:
+            p = Planet[planet]
+        except KeyError:
+            return {"error": f"Unknown planet: {planet}"}
+        return {"planet": planet, "house": get_planet_house(p, time)}
+
+    return {
+        "planet_houses": get_all_planet_houses(time),
+        "house_occupancy": get_house_occupancy_map(time),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Muhurtha (Electional Astrology)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_muhurtha(
+    dt: str,
+    lat: float,
+    lon: float,
+    birth_moon_sign: int = 0,
+    query: str = "all",
+) -> dict:
+    """
+    Returns Muhurtha (electional astrology) assessments.
+
+    Args:
+        dt: Transit/query datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+        birth_moon_sign: Janma Rasi (1=Aries … 12=Pisces). Required for
+                         chandrabala and ghataka. Pass 0 to skip those.
+        query: Which check to run — "chandrabala", "panchaka", "ghataka", or "all" (default)
+
+    Returns:
+        Dict with requested muhurtha data.
+        "chandrabala": Moon's positional strength (score 1-12).
+        "panchaka": Panchaka Dosha type and whether present.
+        "ghataka": Ghataka factors and total inauspicious count.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.calculate import get_planet_longitude, get_lagnam
+    from logic.nakshatra import get_nakshatra
+    from logic.panchang import get_tithi
+    from logic.rasi import get_rasi
+    from logic.muhurtha import get_chandrabala, get_panchaka, get_ghataka_chakra
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    sun_long  = get_planet_longitude(Planet.Sun,  time)
+    moon_long = get_planet_longitude(Planet.Moon, time)
+    _, transit_moon_sign = get_rasi(moon_long)
+    _, lagna_sign_num    = get_rasi(get_lagnam(time))
+    _, tithi_num, _ = get_tithi(sun_long, moon_long)
+    nak_name, nak_num, _, _ = get_nakshatra(moon_long)
+    python_weekday = birth_dt.weekday()
+
+    result = {}
+
+    if query in ("chandrabala", "all") and birth_moon_sign:
+        cb = get_chandrabala(birth_moon_sign, transit_moon_sign)
+        cb["birth_moon_sign"] = birth_moon_sign
+        cb["transit_moon_sign"] = transit_moon_sign
+        result["chandrabala"] = cb
+
+    if query in ("panchaka", "all"):
+        pk = get_panchaka(tithi_num, nak_num, python_weekday, lagna_sign_num)
+        pk["tithi_num"] = tithi_num
+        pk["nakshatra"] = nak_name
+        result["panchaka"] = pk
+
+    if query in ("ghataka", "all") and birth_moon_sign:
+        result["ghataka"] = get_ghataka_chakra(
+            birth_moon_sign, transit_moon_sign,
+            tithi_num, python_weekday, nak_name, lagna_sign_num
+        )
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Kakshya (Sub-lord Divisions)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_kakshya(
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """
+    Returns Kakshya (KP-style sub-lord) division for all 9 planets.
+
+    Each sign is split into 8 sub-divisions of 3°45' with fixed lords:
+    Saturn, Jupiter, Mars, Sun, Venus, Mercury, Moon, Lagna.
+    The Kakshya lord fine-tunes transit predictions in KP astrology.
+
+    Args:
+        dt: Birth/transit datetime in ISO 8601 format
+        lat: Geographic latitude in decimal degrees
+        lon: Geographic longitude in decimal degrees
+
+    Returns:
+        {"kakshya": {planet: {"kakshya_lord": "...", "kakshya_num": N, "percentage": X}}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.calculate import get_planet_longitude
+    from logic.kakshya import get_all_planets_kakshya
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    planet_longs = {
+        p.name: get_planet_longitude(p, time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn,
+                  Planet.Rahu, Planet.Ketu]
+    }
+    return {"kakshya": get_all_planets_kakshya(planet_longs)}
+
+
+# ---------------------------------------------------------------------------
+# Pancha Pakshi (Five Bird System)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_pancha_pakshi_analysis(
+    dt: str,
+    lat: float,
+    lon: float,
+    query_dt: str = "",
+) -> dict:
+    """
+    Returns Pancha Pakshi (Five Bird System) analysis for the birth chart.
+
+    Birth bird is derived from the birth Moon nakshatra and tithi.
+    Shows the bird's activity at the query time and favorable periods for the day.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1990-06-15T10:30:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+        query_dt: Moment to analyse (ISO 8601, defaults to now)
+
+    Returns:
+        Dict with birth_bird, current_activity, favorability (0-100),
+        prediction, ruling_bird, all_birds activities, and favorable_periods.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.consts import Planet
+    from logic.calculate import get_planet_longitude
+    from logic.nakshatra import get_nakshatra
+    from logic.panchang import get_tithi
+    from logic.pancha_pakshi import get_pancha_pakshi, get_favorable_periods, Activity
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    moon_long = get_planet_longitude(Planet.Moon, time)
+    sun_long  = get_planet_longitude(Planet.Sun,  time)
+    _, birth_nak_num, _, _ = get_nakshatra(moon_long)   # 1-27
+    _, birth_tithi_num, _  = get_tithi(sun_long, moon_long)  # 1-30
+
+    if query_dt:
+        qdt = datetime.fromisoformat(query_dt)
+        if qdt.tzinfo is None:
+            qdt = qdt.replace(tzinfo=timezone.utc)
+    else:
+        qdt = datetime.now(timezone.utc)
+
+    result = get_pancha_pakshi(birth_nak_num, birth_tithi_num, qdt)
+
+    # Serialize enums to JSON-safe ints
+    result["birth_bird"]["bird"] = int(result["birth_bird"]["bird"])
+    result["current_activity"]["activity"] = int(result["current_activity"]["activity"])
+    if result["ruling_bird"]["bird"] is not None:
+        result["ruling_bird"]["bird"] = int(result["ruling_bird"]["bird"])
+    result["query_time"]["datetime"] = qdt.isoformat()
+
+    result["favorable_periods"] = get_favorable_periods(
+        birth_nak_num, birth_tithi_num, qdt, Activity.EATING
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Wealth Yogas (Chatussagara, Vasumathi, Parvata)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_wealth_yogas(
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """
+    Returns the three classical wealth and success yogas.
+
+    - Chatussagara Yoga: All four kendras occupied (four oceans of plenty).
+      Indicates power, wealth from multiple sources, well-rounded success.
+    - Vasumathi Yoga: Benefics in upachaya houses (3, 6, 10, 11).
+      Indicates steady wealth accumulation and rise in life.
+    - Parvata Yoga: Benefics in kendras AND lagna/7th lord dignified.
+      Indicates towering, stable success and community leadership.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1990-06-15T10:30:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+
+    Returns:
+        {"wealth_yogas": [{name, occurring, strength, description, condition, nature}, ...]}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.wealth_yogas_temp import (
+        check_chatussagara_yoga, check_vasumathi_yoga, check_parvata_yoga
+    )
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    results = []
+    for fn in [check_chatussagara_yoga, check_vasumathi_yoga, check_parvata_yoga]:
+        y = fn(time)
+        results.append({
+            "name": y.name,
+            "occurring": y.occurring,
+            "strength": y.strength,
+            "description": y.description,
+            "condition": y.condition,
+            "nature": y.nature.value,
+        })
+
+    return {"wealth_yogas": results}
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 

@@ -2651,6 +2651,129 @@ def lordship_by_planet(
 
 
 # =============================================================================
+# Kakshya (Sub-lord Divisions)
+# =============================================================================
+
+@app.get("/api/v1/kakshya", tags=["Kakshya"])
+def kakshya_all(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns Kakshya (sub-lord) division for all 9 planets.
+
+    Each sign is split into 8 sub-divisions of 3°45' with fixed lords:
+    Saturn, Jupiter, Mars, Sun, Venus, Mercury, Moon, Lagna.
+    Used in KP-style transit fine-tuning.
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.kakshya import get_all_planets_kakshya
+
+    time = _make_astro_time(dt, lat, lon)
+    planet_longs = {
+        p.name: get_planet_longitude(p, time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn,
+                  Planet.Rahu, Planet.Ketu]
+    }
+    return {"kakshya": get_all_planets_kakshya(planet_longs)}
+
+
+# =============================================================================
+# Pancha Pakshi (Five Bird System)
+# =============================================================================
+
+@app.get("/api/v1/pancha-pakshi", tags=["Pancha Pakshi"])
+def pancha_pakshi_analysis(
+    dt: str,
+    lat: float,
+    lon: float,
+    query_dt: Optional[str] = None,
+):
+    """
+    Returns Pancha Pakshi (Five Bird System) analysis.
+
+    Birth bird is derived from the birth Moon nakshatra and tithi.
+    The analysis shows your bird's activity at the query time and
+    lists all favorable periods for that day.
+
+    - **dt**: Birth datetime (ISO 8601)
+    - **lat / lon**: Birth coordinates
+    - **query_dt**: Moment to analyse (ISO 8601, defaults to now)
+    """
+    from logic.pancha_pakshi import get_pancha_pakshi, get_favorable_periods, Activity
+    from datetime import timezone
+
+    birth_time = _make_astro_time(dt, lat, lon)
+    moon_long = get_planet_longitude(Planet.Moon, birth_time)
+    sun_long  = get_planet_longitude(Planet.Sun,  birth_time)
+    _, birth_nak_num, _, _ = get_nakshatra(moon_long)   # 1-27
+    _, birth_tithi_num, _  = get_tithi(sun_long, moon_long)  # 1-30
+
+    if query_dt:
+        qtime = _make_astro_time(query_dt, lat, lon)
+        query_datetime = qtime.datetime
+    else:
+        query_datetime = datetime.now(timezone.utc)
+
+    result = get_pancha_pakshi(birth_nak_num, birth_tithi_num, query_datetime)
+
+    # Serialize enums to JSON-safe values
+    result["birth_bird"]["bird"] = int(result["birth_bird"]["bird"])
+    result["current_activity"]["activity"] = int(result["current_activity"]["activity"])
+    if result["ruling_bird"]["bird"] is not None:
+        result["ruling_bird"]["bird"] = int(result["ruling_bird"]["bird"])
+    result["query_time"]["datetime"] = query_datetime.isoformat()
+
+    result["favorable_periods"] = get_favorable_periods(
+        birth_nak_num, birth_tithi_num, query_datetime, Activity.EATING
+    )
+    return result
+
+
+# =============================================================================
+# Wealth Yogas (Chatussagara, Vasumathi, Parvata)
+# =============================================================================
+
+@app.get("/api/v1/yogas/wealth", tags=["Yogas"])
+def wealth_yogas(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Returns the three classical wealth / success yogas.
+
+    - **Chatussagara** — all four kendras occupied (four oceans of plenty)
+    - **Vasumathi** — benefics in upachaya houses (steady wealth growth)
+    - **Parvata** — benefics in kendras + lagna/7th lord dignified (towering success)
+
+    - **dt**: ISO 8601 datetime string
+    - **lat / lon**: Geographic coordinates
+    """
+    from logic.wealth_yogas_temp import (
+        check_chatussagara_yoga, check_vasumathi_yoga, check_parvata_yoga
+    )
+
+    time = _make_astro_time(dt, lat, lon)
+    results = []
+    for fn in [check_chatussagara_yoga, check_vasumathi_yoga, check_parvata_yoga]:
+        y = fn(time)
+        results.append({
+            "name": y.name,
+            "occurring": y.occurring,
+            "strength": y.strength,
+            "description": y.description,
+            "condition": y.condition,
+            "nature": y.nature.value,
+        })
+    return {"wealth_yogas": results}
+
+
+# =============================================================================
 # MCP Server (mounted at /mcp)
 # POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client

@@ -1,5 +1,8 @@
 # Temporary file with new wealth yoga functions to be added to yogas.py
 
+from logic.yogas import Yoga, YogaNature
+
+
 def check_chatussagara_yoga(time: 'AstroTime') -> Yoga:
     """
     Chatussagara Yoga - All Four Kendras Occupied (Four Oceans)
@@ -203,7 +206,7 @@ def check_parvata_yoga(time: 'AstroTime') -> Yoga:
     from .calculate import get_planet_longitude, get_lagnam
     from .lordship import get_lord_of_house
     from .consts import Planet
-    from .avastha import is_in_dignity
+    from .avastha import get_dignity_status
     
     try:
         # Get Lagna
@@ -243,8 +246,9 @@ def check_parvata_yoga(time: 'AstroTime') -> Yoga:
             
             # Check if in kendra or trikona
             if lord_house in trikona_and_kendra:
-                # Check dignity (own sign, exaltation, or moolatrikona)
-                in_dignity = is_in_dignity(lord, time)
+                # Check dignity (own sign, exaltation, or moolatrikona = score >= 3)
+                _, dignity_score = get_dignity_status(lord.name, lord_long)
+                in_dignity = dignity_score >= 3
                 
                 if in_dignity:
                     lord_conditions_met = True
