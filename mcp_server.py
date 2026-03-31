@@ -40,6 +40,9 @@ from logic.psychic_profile import get_psychic_profile
 from logic.ashtakavarga import get_all_bhinnashtakavarga
 from logic.sunrise import get_sun_times
 from logic.vedha import calculate_vedha_status
+from logic.shadbala import get_shadbala_summary, get_shadbala_pinda, datetime_to_jd
+from logic.yogas import get_all_yogas, yoga_summary
+from logic.avastha import get_all_avasthas
 
 import pytz
 
@@ -628,6 +631,198 @@ def daily_five_step(
             "any_blocked": any(v.get("status") == "Blocked" for v in vedha_by_planet.values()),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Tool 11 – Shadbala (six-fold planetary strength)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_shadbala(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    birth_latitude: Optional[float] = None,
+    birth_longitude: Optional[float] = None,
+    birth_timezone: Optional[str] = None,
+    planet: Optional[str] = None,
+) -> dict:
+    """
+    Calculate Shadbala (six-fold strength) for birth chart planets.
+
+    When planet is omitted, returns a summary for all 7 classical planets with
+    ranking, strongest/weakest planet, and total rupas per planet.
+    When planet is specified, returns the full breakdown of all 6 balas
+    (Sthana, Dig, Kaala, Cheshta, Naisargika, Drik) and whether the planet
+    meets the classical minimum strength threshold.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: Birth city name (used if lat/lon not given).
+        birth_latitude: Birth latitude override.
+        birth_longitude: Birth longitude override.
+        birth_timezone: IANA timezone override.
+        planet: Optional planet name (Sun/Moon/Mars/Mercury/Jupiter/Venus/Saturn).
+
+    Returns:
+        Shadbala summary for all planets, or detailed breakdown for one planet.
+    """
+    try:
+        _, lat, lon, tz_name = _resolve_location(
+            birth_place, birth_latitude, birth_longitude, birth_timezone
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+
+    birth_dt = _parse_dt(birth_date, birth_time, tz_name)
+
+    if planet:
+        jd = datetime_to_jd(birth_dt)
+        return get_shadbala_pinda(planet, jd, lat, lon)
+
+    return get_shadbala_summary(birth_dt, lat, lon)
+
+
+# ---------------------------------------------------------------------------
+# Tool 12 – Birth yogas
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_birth_yogas(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    birth_latitude: Optional[float] = None,
+    birth_longitude: Optional[float] = None,
+    birth_timezone: Optional[str] = None,
+    only_occurring: bool = False,
+) -> dict:
+    """
+    Identify Vedic birth yogas (planetary combinations) in a horoscope.
+
+    Checks 21 classical yogas including Pancha Mahapurusha (Hamsa, Malavya,
+    Bhadra, Ruchaka, Sasha), GajaKesari, Viparita Raja yogas, wealth yogas
+    (Lakshmi, Chatussagara, Vasumathi, Parvata), and lunar yogas.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: Birth city name (used if lat/lon not given).
+        birth_latitude: Birth latitude override.
+        birth_longitude: Birth longitude override.
+        birth_timezone: IANA timezone override.
+        only_occurring: If True, return only yogas that are present (default False = all 21).
+
+    Returns:
+        summary dict + list of yogas with name, nature, occurring, description, condition.
+    """
+    try:
+        _, lat, lon, tz_name = _resolve_location(
+            birth_place, birth_latitude, birth_longitude, birth_timezone
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+
+    birth_dt = _parse_dt(birth_date, birth_time, tz_name)
+    time = AstroTime(birth_dt, lat, lon)
+
+    summary = yoga_summary(time)
+    all_yogas = get_all_yogas(time)
+    yoga_list = [y for y in all_yogas if y.occurring] if only_occurring else all_yogas
+
+    return {
+        "summary": summary,
+        "yogas": [
+            {
+                "name": y.name,
+                "nature": y.nature.value,
+                "occurring": y.occurring,
+                "description": y.description,
+                "condition": y.condition,
+                "strength": y.strength,
+            }
+            for y in yoga_list
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tool 13 – Avastha (planetary states)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_planet_avastha(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    birth_latitude: Optional[float] = None,
+    birth_longitude: Optional[float] = None,
+    birth_timezone: Optional[str] = None,
+    planet: Optional[str] = None,
+) -> dict:
+    """
+    Calculate planetary Avastha (5 types of states) for a birth chart.
+
+    Avastha reveals how a planet delivers its results:
+    - Bala Avastha: age/maturity (Bala/Kumara/Yuva/Vriddha/Mrita)
+    - Jagradadi Avastha: alertness level (Jagrat/Swapna/Sushupti)
+    - Deeptadi Avastha: brightness based on solar proximity
+    - Lajjitadi Avastha: dignity/conjunction state
+    - Shayanadi Avastha: posture by nakshatra pada
+
+    When planet is omitted, returns avastha for all 9 planets.
+    When planet is specified, returns avastha for that planet only.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: Birth city name (used if lat/lon not given).
+        birth_latitude: Birth latitude override.
+        birth_longitude: Birth longitude override.
+        birth_timezone: IANA timezone override.
+        planet: Optional planet name (Sun/Moon/Mars/Mercury/Jupiter/Venus/Saturn/Rahu/Ketu).
+
+    Returns:
+        Dict of avastha results keyed by planet name.
+    """
+    try:
+        _, lat, lon, tz_name = _resolve_location(
+            birth_place, birth_latitude, birth_longitude, birth_timezone
+        )
+    except ValueError as e:
+        return {"error": str(e)}
+
+    birth_dt = _parse_dt(birth_date, birth_time, tz_name)
+    time = AstroTime(birth_dt, lat, lon)
+
+    planets_to_check = (
+        [p for p in Planet if p.name.lower() == planet.lower()]
+        if planet
+        else list(Planet)
+    )
+
+    if planet and not planets_to_check:
+        return {"error": f"Unknown planet '{planet}'"}
+
+    sun_longitude = get_planet_longitude(Planet.Sun, time)
+    result = {}
+    for p in planets_to_check:
+        lon_p = get_planet_longitude(p, time)
+        house_num = None
+        conjuncts = []
+        try:
+            from logic.house_queries import get_planet_house
+            house_num = get_planet_house(p, time)
+            conjuncts = [
+                op.name for op in Planet
+                if op != p and abs(get_planet_longitude(op, time) - lon_p) < 10
+            ]
+        except Exception:
+            pass
+        result[p.name] = get_all_avasthas(p.name, lon_p, sun_longitude, house_num, conjuncts)
+
+    return result if not planet else result.get(planets_to_check[0].name, {})
 
 
 # ---------------------------------------------------------------------------
