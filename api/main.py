@@ -2003,13 +2003,7 @@ async def get_planet_relationships(
     - **lon**: Geographic longitude
     """
     time = _make_astro_time(dt, lat, lon)
-    grid = get_all_planet_relationships(time)
-    # Convert Planet enum keys to strings for JSON serialization
-    serialised = {
-        main.name: {sec.name: rel for sec, rel in inner.items()}
-        for main, inner in grid.items()
-    }
-    return {"relationships": serialised}
+    return {"relationships": get_all_planet_relationships(time)}
 
 
 # ------------------------------------------------------------------
@@ -2031,12 +2025,7 @@ async def get_aspect_grid(
     - **lat / lon**: Geographic coordinates
     """
     time = _make_astro_time(dt, lat, lon)
-    raw = get_full_aspect_grid(time)
-    serialised = {
-        tx.name: {rx.name: val for rx, val in inner.items()}
-        for tx, inner in raw.items()
-    }
-    return {"aspects": serialised}
+    return {"aspects": get_full_aspect_grid(time)}
 
 
 @app.get("/api/v1/aspects/planet/{planet_name}", tags=["Planet Aspects"])
