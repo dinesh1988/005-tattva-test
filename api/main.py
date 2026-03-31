@@ -2774,6 +2774,153 @@ def wealth_yogas(
 
 
 # =============================================================================
+# Ashtakavarga Endpoints
+# =============================================================================
+
+@app.get("/api/v1/ashtakavarga", tags=["Ashtakavarga"])
+async def get_ashtakavarga_chart(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Ashtakavarga analysis for a birth chart.
+
+    Returns Sarvashtakavarga (total benefic points per sign, sum of all planets)
+    and Bhinnashtakavarga (individual breakdown for each of the 7 classical planets).
+    """
+    from logic.ashtakavarga import get_sarvashtakavarga_points, get_all_bhinnashtakavarga
+    sign_names = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+    time = _make_astro_time(dt, lat, lon)
+    sarva = get_sarvashtakavarga_points(time)
+    bhinna = get_all_bhinnashtakavarga(time)
+    return {
+        "sarvashtakavarga": {sign_names[k - 1]: v for k, v in sarva.items()},
+        "bhinnashtakavarga": {
+            planet: {sign_names[k - 1]: v for k, v in pts.items()}
+            for planet, pts in bhinna.items()
+        },
+    }
+
+
+@app.get("/api/v1/ashtakavarga/{planet_name}", tags=["Ashtakavarga"])
+async def get_planet_ashtakavarga(
+    planet_name: str,
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Bhinnashtakavarga for a single planet with per-source-planet breakdown.
+
+    Valid planets: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn.
+    """
+    from logic.ashtakavarga import get_bhinnashtakavarga, get_bhinnashtakavarga_with_sources
+    valid = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+    if planet_name not in valid:
+        raise HTTPException(status_code=400, detail=f"Planet must be one of: {', '.join(valid)}")
+    sign_names = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+    time = _make_astro_time(dt, lat, lon)
+    points = get_bhinnashtakavarga(planet_name, time)
+    detailed = get_bhinnashtakavarga_with_sources(planet_name, time)
+    return {
+        "planet": planet_name,
+        "bhinnashtakavarga": {sign_names[k - 1]: v for k, v in points.items()},
+        "by_source": {sign_names[k - 1]: v for k, v in detailed.items()},
+    }
+
+
+# =============================================================================
+# Functional Nature Endpoint
+# =============================================================================
+
+@app.get("/api/v1/functional-nature", tags=["Functional Nature"])
+async def get_functional_nature_endpoint(
+    dt: str,
+    lat: float,
+    lon: float,
+):
+    """
+    Functional benefic/malefic nature of all planets for this chart's ascendant.
+
+    Returns per-planet classification (Yogakaraka, Functional Benefic, Functional Malefic,
+    Mixed, Neutral) and categorized lists for use in prediction algorithms.
+    """
+    from logic.functional_nature import (
+        get_functional_nature, get_functional_nature_categorized, get_ascendant_name
+    )
+    from logic.calculate import get_lagnam
+    time = _make_astro_time(dt, lat, lon)
+    lagna_long = get_lagnam(time)
+    lagna_num = int(lagna_long // 30) + 1
+    return {
+        "ascendant": get_ascendant_name(lagna_num),
+        "ascendant_number": lagna_num,
+        "planets": get_functional_nature(lagna_num),
+        "categorized": get_functional_nature_categorized(lagna_num),
+    }
+
+
+# =============================================================================
+# Vedha (Transit Obstruction) Endpoint
+# =============================================================================
+
+@app.get("/api/v1/vedha", tags=["Vedha"])
+async def get_vedha_status(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+    transit_dt: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
+):
+    """
+    Gochara Vedha (transit obstruction) analysis.
+
+    Checks all 9 planets in transit against the natal Moon sign to determine
+    which are in favorable houses and whether any Vedha (obstruction) applies.
+    Returns a per-planet status: Favorable, Blocked, Favorable (Exempt), or Unfavorable.
+    """
+    from logic.vedha import calculate_vedha_status
+    from logic.calculate import get_planet_longitude, get_lagnam
+    from logic.rasi import get_rasi
+    from logic.consts import Planet
+
+    birth_time = _make_astro_time(birth_dt, birth_lat, birth_lon)
+    moon_long = get_planet_longitude(Planet.Moon, birth_time)
+    _, natal_moon_sign = get_rasi(moon_long)
+
+    t_lat = transit_lat if transit_lat is not None else birth_lat
+    t_lon = transit_lon if transit_lon is not None else birth_lon
+    if transit_dt:
+        transit_time = _make_astro_time(transit_dt, t_lat, t_lon)
+    else:
+        from datetime import timezone as _tz
+        transit_time = _make_astro_time(
+            __import__('datetime').datetime.now(_tz.utc).isoformat(), t_lat, t_lon
+        )
+
+    transit_positions = {}
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
+        long = get_planet_longitude(planet, transit_time)
+        _, sign_num = get_rasi(long)
+        transit_positions[planet.name] = sign_num
+
+    result = calculate_vedha_status(natal_moon_sign, transit_positions)
+    favorable = [p for p, v in result.items() if "Favorable" in v["status"]]
+    blocked = [p for p, v in result.items() if v["status"] == "Blocked"]
+    unfavorable = [p for p, v in result.items() if v["status"] == "Unfavorable"]
+    return {
+        "natal_moon_sign": natal_moon_sign,
+        "summary": {"favorable": favorable, "blocked": blocked, "unfavorable": unfavorable},
+        "planets": result,
+    }
+
+
+# =============================================================================
 # MCP Server (mounted at /mcp)
 # POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client

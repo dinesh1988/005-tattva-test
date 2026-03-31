@@ -1484,6 +1484,366 @@ def get_wealth_yogas(
 
 
 # ---------------------------------------------------------------------------
+# Option A: MCP tools for existing REST endpoints that had no MCP coverage
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_gochara_panchang(
+    dt: str,
+    lat: float,
+    lon: float,
+    natal_nakshatra: str = "Purva Bhadrapada",
+) -> dict:
+    """Daily sky state, Panchang, and transit analysis for a given time and location.
+
+    Returns current planetary positions, Panchang (tithi, nakshatra, yoga, karana, vara),
+    Hora table (24 planetary hours), Choghadiya table (8 day/night periods), and
+    Tara Bala (lunar favorability for natal nakshatra).
+
+    Args:
+        dt: ISO 8601 datetime string (e.g. "2026-03-31T09:00:00")
+        lat: Latitude in decimal degrees
+        lon: Longitude in decimal degrees
+        natal_nakshatra: Natal Moon nakshatra name for Tara Bala (default: "Purva Bhadrapada")
+
+    Returns:
+        {"planets": {...}, "panchang": {...}, "hora": {...},
+         "choghadiya": {...}, "tara_bala": {...}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.calculate import get_planet_longitude
+    from logic.nakshatra import get_nakshatra, NAKSHATRAS
+    from logic.panchang import get_tithi, get_karana, get_nitya_yoga_details
+    from logic.nakshatra import get_tara_bala
+    from logic.sunrise import get_sun_times
+    from logic.consts import Planet
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+
+    sign_names = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+
+    planets_data = {}
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
+        try:
+            longitude = get_planet_longitude(planet, time)
+            nak_name, nak_num, nak_pct, pada = get_nakshatra(longitude)
+            planets_data[planet.name] = {
+                "longitude": round(longitude, 4),
+                "sign": sign_names[int(longitude / 30)],
+                "degree_in_sign": round(longitude % 30, 4),
+                "nakshatra": nak_name,
+                "nakshatra_number": nak_num,
+                "nakshatra_pada": pada,
+            }
+        except Exception as e:
+            planets_data[planet.name] = {"error": str(e)}
+
+    sun_long = get_planet_longitude(Planet.Sun, time)
+    moon_long = get_planet_longitude(Planet.Moon, time)
+    tithi_name, tithi_num, tithi_pct = get_tithi(sun_long, moon_long)
+    yoga_details = get_nitya_yoga_details(sun_long, moon_long)
+    moon_nak_name, moon_nak_num, moon_nak_pct, moon_pada = get_nakshatra(moon_long)
+    karana = get_karana(sun_long, moon_long)
+    vara_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    vara_name = vara_names[birth_dt.weekday()]
+
+    natal_lookup = {n.lower(): i + 1 for i, n in enumerate(NAKSHATRAS)}
+    natal_nak_num = natal_lookup.get(natal_nakshatra.strip().lower(), 1)
+    tara_name, tara_num = get_tara_bala(natal_nak_num, moon_nak_num)
+    tara_good = {2, 4, 6, 8, 9}
+    tara_bad = {3, 5, 7}
+
+    try:
+        sun_times = get_sun_times(date_local=birth_dt, lat=lat, lon=lon, tz_name="UTC")
+        chaldean_order = ["Saturn", "Jupiter", "Mars", "Sun", "Venus", "Mercury", "Moon"]
+        weekday_lords = {0: "Moon", 1: "Mars", 2: "Mercury", 3: "Jupiter",
+                         4: "Venus", 5: "Saturn", 6: "Sun"}
+        start_lord = weekday_lords[sun_times.sunrise.weekday()]
+        start_index = chaldean_order.index(start_lord)
+        day_len = sun_times.sunset - sun_times.sunrise
+        night_len = sun_times.next_sunrise - sun_times.sunset
+        day_hora = day_len / 12
+        night_hora = night_len / 12
+        hora_table = []
+        for i in range(12):
+            hora_table.append({
+                "index": i + 1, "period": "day",
+                "start": (sun_times.sunrise + day_hora * i).isoformat(),
+                "end": (sun_times.sunrise + day_hora * (i + 1)).isoformat(),
+                "lord": chaldean_order[(start_index + i) % 7],
+            })
+        for i in range(12):
+            hora_table.append({
+                "index": 12 + i + 1, "period": "night",
+                "start": (sun_times.sunset + night_hora * i).isoformat(),
+                "end": (sun_times.sunset + night_hora * (i + 1)).isoformat(),
+                "lord": chaldean_order[(start_index + 12 + i) % 7],
+            })
+        day_choghadiya = {
+            6: ["Udveg","Char","Labh","Amrit","Kaal","Shubh","Rog","Udveg"],
+            0: ["Amrit","Kaal","Shubh","Rog","Udveg","Char","Labh","Amrit"],
+            1: ["Rog","Udveg","Char","Labh","Amrit","Kaal","Shubh","Rog"],
+            2: ["Labh","Amrit","Kaal","Shubh","Rog","Udveg","Char","Labh"],
+            3: ["Shubh","Rog","Udveg","Char","Labh","Amrit","Kaal","Shubh"],
+            4: ["Char","Labh","Amrit","Kaal","Shubh","Rog","Udveg","Char"],
+            5: ["Kaal","Shubh","Rog","Udveg","Char","Labh","Amrit","Kaal"],
+        }
+        night_choghadiya = {
+            6: ["Shubh","Amrit","Char","Rog","Kaal","Labh","Udveg","Shubh"],
+            0: ["Char","Rog","Kaal","Labh","Udveg","Shubh","Amrit","Char"],
+            1: ["Kaal","Labh","Udveg","Shubh","Amrit","Char","Rog","Kaal"],
+            2: ["Udveg","Shubh","Amrit","Char","Rog","Kaal","Labh","Udveg"],
+            3: ["Amrit","Char","Rog","Kaal","Labh","Udveg","Shubh","Amrit"],
+            4: ["Rog","Kaal","Labh","Udveg","Shubh","Amrit","Char","Rog"],
+            5: ["Labh","Udveg","Shubh","Amrit","Char","Rog","Kaal","Labh"],
+        }
+        choghadiya_good = {"Amrit", "Shubh", "Labh", "Char"}
+        choghadiya_bad = {"Kaal", "Rog", "Udveg"}
+        wd = sun_times.sunrise.weekday()
+        seg_day = day_len / 8
+        seg_night = night_len / 8
+        choghadiya_table = []
+        for i, name in enumerate(day_choghadiya[wd]):
+            choghadiya_table.append({
+                "period": "day", "index": i + 1, "name": name,
+                "quality": "good" if name in choghadiya_good else ("bad" if name in choghadiya_bad else "neutral"),
+                "start": (sun_times.sunrise + seg_day * i).isoformat(),
+                "end": (sun_times.sunrise + seg_day * (i + 1)).isoformat(),
+            })
+        for i, name in enumerate(night_choghadiya[wd]):
+            choghadiya_table.append({
+                "period": "night", "index": i + 1, "name": name,
+                "quality": "good" if name in choghadiya_good else ("bad" if name in choghadiya_bad else "neutral"),
+                "start": (sun_times.sunset + seg_night * i).isoformat(),
+                "end": (sun_times.sunset + seg_night * (i + 1)).isoformat(),
+            })
+    except Exception as e:
+        hora_table = [{"error": str(e)}]
+        choghadiya_table = [{"error": str(e)}]
+
+    return {
+        "datetime": birth_dt.isoformat(),
+        "planets": planets_data,
+        "panchang": {
+            "vara": vara_name,
+            "tithi": {"name": tithi_name, "number": tithi_num, "percentage_elapsed": round(tithi_pct, 2)},
+            "karana": karana,
+            "yoga": {"name": yoga_details["name"], "number": yoga_details["number"],
+                     "nature": yoga_details["nature"], "effect": yoga_details["effect"]},
+            "nakshatra": {"name": moon_nak_name, "number": moon_nak_num, "pada": moon_pada},
+        },
+        "tara_bala": {
+            "natal_nakshatra": natal_nakshatra,
+            "tara_name": tara_name,
+            "tara_number": tara_num,
+            "quality": "good" if tara_num in tara_good else ("challenging" if tara_num in tara_bad else "neutral"),
+        },
+        "hora": hora_table,
+        "choghadiya": choghadiya_table,
+    }
+
+
+@mcp.tool()
+def get_signal_strengths() -> dict:
+    """Get all 12 Ketu house signal strength profiles (reference data).
+
+    Each of the 12 houses where Ketu can be placed gives a different signal
+    strength archetype. Returns intensity levels, titles, descriptions,
+    manifestation patterns, challenges, and gifts.
+
+    Returns:
+        Reference dictionary of 12 signal strength profiles.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.psychic_profile import KETU_SIGNAL_STRENGTH
+    return KETU_SIGNAL_STRENGTH
+
+
+@mcp.tool()
+def get_superpowers() -> dict:
+    """Get all 27 nakshatra-based superpower profiles (reference data).
+
+    Each of the 27 nakshatras confers a unique spiritual superpower archetype.
+    Returns the full reference table used for psychic profile generation.
+
+    Returns:
+        Reference dictionary of 27 nakshatra superpower profiles.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.psychic_profile import NAKSHATRA_SUPERPOWERS
+    return NAKSHATRA_SUPERPOWERS
+
+
+# ---------------------------------------------------------------------------
+# Option B: MCP tools for new logic modules (ashtakavarga, functional_nature, vedha)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_ashtakavarga(dt: str, lat: float, lon: float) -> dict:
+    """Ashtakavarga analysis for a birth chart.
+
+    Calculates Sarvashtakavarga (total benefic points per sign, sum of all 7 planets)
+    and Bhinnashtakavarga (individual benefic point table for each of the 7 classical
+    planets: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn).
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1988-06-07T20:40:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+
+    Returns:
+        {"sarvashtakavarga": {sign: points, ...},
+         "bhinnashtakavarga": {planet: {sign: points, ...}, ...}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.ashtakavarga import get_sarvashtakavarga_points, get_all_bhinnashtakavarga
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+    sign_names = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+    sarva = get_sarvashtakavarga_points(time)
+    bhinna = get_all_bhinnashtakavarga(time)
+    return {
+        "sarvashtakavarga": {sign_names[k - 1]: v for k, v in sarva.items()},
+        "bhinnashtakavarga": {
+            planet: {sign_names[k - 1]: v for k, v in pts.items()}
+            for planet, pts in bhinna.items()
+        },
+    }
+
+
+@mcp.tool()
+def get_functional_nature(dt: str, lat: float, lon: float) -> dict:
+    """Functional benefic/malefic classification of planets for this chart's ascendant.
+
+    Based on Vedic astrology's functional nature theory: planets become benefic or
+    malefic based on the houses they rule from the ascendant. Identifies Yogakaraka
+    planets (ruling both Kendra and Trikona), functional benefics, malefics, and
+    neutrals. Crucial for understanding which planets will give good vs bad results.
+
+    Args:
+        dt: Birth datetime in ISO 8601 format (e.g. "1988-06-07T20:40:00")
+        lat: Birth latitude in decimal degrees
+        lon: Birth longitude in decimal degrees
+
+    Returns:
+        {"ascendant": str, "ascendant_number": int,
+         "planets": {planet: {nature, houses_ruled, reason, strength_impact}, ...},
+         "categorized": {benefics, malefics, neutrals, yogakaraka}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.calculate import get_lagnam
+    from logic.functional_nature import (
+        get_functional_nature as _get_fn,
+        get_functional_nature_categorized,
+        get_ascendant_name,
+    )
+    from datetime import datetime, timezone
+
+    birth_dt = datetime.fromisoformat(dt)
+    if birth_dt.tzinfo is None:
+        birth_dt = birth_dt.replace(tzinfo=timezone.utc)
+    time = AstroTime(birth_dt, lat, lon)
+    lagna_long = get_lagnam(time)
+    lagna_num = int(lagna_long // 30) + 1
+    return {
+        "ascendant": get_ascendant_name(lagna_num),
+        "ascendant_number": lagna_num,
+        "planets": _get_fn(lagna_num),
+        "categorized": get_functional_nature_categorized(lagna_num),
+    }
+
+
+@mcp.tool()
+def get_vedha(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+    transit_dt: str = "",
+    transit_lat: float = 0.0,
+    transit_lon: float = 0.0,
+) -> dict:
+    """Gochara Vedha (transit obstruction) analysis.
+
+    Checks all 9 planets in transit against the natal Moon sign. Identifies which
+    planets are in auspicious Gochara houses and whether Vedha (obstruction by another
+    planet in the opposite house) blocks their benefit.
+
+    Statuses: Favorable, Favorable (Exempt), Blocked, Unfavorable.
+
+    Args:
+        birth_dt: Birth datetime ISO 8601 (determines natal Moon sign)
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+        transit_dt: Transit datetime ISO 8601 (defaults to UTC now if empty)
+        transit_lat: Transit latitude (defaults to birth_lat if 0)
+        transit_lon: Transit longitude (defaults to birth_lon if 0)
+
+    Returns:
+        {"natal_moon_sign": int,
+         "summary": {"favorable": [...], "blocked": [...], "unfavorable": [...]},
+         "planets": {planet: {status, reason, current_house, vedha_house, blockers}, ...}}
+    """
+    import sys, os
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from logic.time import AstroTime
+    from logic.calculate import get_planet_longitude
+    from logic.rasi import get_rasi
+    from logic.consts import Planet
+    from logic.vedha import calculate_vedha_status
+    from datetime import datetime, timezone
+
+    def _parse(s: str, fallback_lat: float, fallback_lon: float) -> AstroTime:
+        d = datetime.fromisoformat(s) if s else datetime.now(timezone.utc)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return AstroTime(d, fallback_lat, fallback_lon)
+
+    birth_time = _parse(birth_dt, birth_lat, birth_lon)
+    moon_long = get_planet_longitude(Planet.Moon, birth_time)
+    _, natal_moon_sign = get_rasi(moon_long)
+
+    t_lat = transit_lat if transit_lat != 0.0 else birth_lat
+    t_lon = transit_lon if transit_lon != 0.0 else birth_lon
+    transit_time = _parse(transit_dt, t_lat, t_lon)
+
+    transit_positions = {}
+    for planet in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                   Planet.Jupiter, Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]:
+        long = get_planet_longitude(planet, transit_time)
+        _, sign_num = get_rasi(long)
+        transit_positions[planet.name] = sign_num
+
+    result = calculate_vedha_status(natal_moon_sign, transit_positions)
+    favorable = [p for p, v in result.items() if "Favorable" in v["status"]]
+    blocked = [p for p, v in result.items() if v["status"] == "Blocked"]
+    unfavorable = [p for p, v in result.items() if v["status"] == "Unfavorable"]
+    return {
+        "natal_moon_sign": natal_moon_sign,
+        "summary": {"favorable": favorable, "blocked": blocked, "unfavorable": unfavorable},
+        "planets": result,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
