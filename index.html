@@ -309,6 +309,9 @@
         }
         /* inline style overrides for hard-coded bg colours */
         [data-theme="dark"] #api_status { color: var(--text-muted) !important; }
+        [data-theme="dark"] #ai_key_panel { background: #1a1a2e !important; }
+        [data-theme="dark"] #ai_key_panel span { color: #bbb !important; }
+        [data-theme="dark"] #ai_key_panel .key-hint { color: #777 !important; }
 
         /* Tab Navigation */
         .tab-nav { display: flex; gap: 4px; padding-bottom: 16px; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
@@ -951,7 +954,7 @@
                         Ask any Vedic astrology question. Load a birth profile from the <strong>Birth Profile</strong> tab for personalized chart insights, or chat freely about any topic.
                     </p>
                     <!-- API Key Setup -->
-                    <div style="background: #f8f9fa; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+                    <div id="ai_key_panel" style="background: #f8f9fa; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 15px; cursor: pointer; user-select: none;" onclick="toggleAiKeySetup()">
                             <span style="font-size: 12px; font-weight: 600; color: #555;">🔑 API Key Setup</span>
                             <span id="ai_key_toggle_icon" style="font-size: 12px; color: #888;">▲</span>
@@ -977,7 +980,7 @@
                             <input type="checkbox" id="ai_use_tools" style="width: auto; margin: 0; cursor: pointer;">
                             <label for="ai_use_tools" style="font-size: 13px; font-weight: 600; color: #555; cursor: pointer; margin: 0;">🔧 Enable live tools (MCP / REST) — model must support function calling</label>
                         </div>
-                        <div style="font-size: 12px; color: #999;">Key is stored in memory only, never sent anywhere except the chosen endpoint.</div>
+                        <div style="font-size: 12px; color: #999;" class="key-hint">Key is stored in memory only, never sent anywhere except the chosen endpoint.</div>
                         </div>
                     </div>
                     <!-- Chat window -->
