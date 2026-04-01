@@ -123,7 +123,35 @@ def lookup_location(city: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tool 2 – Planetary positions (birth chart)
+# Tool 2 – Current date & time
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_current_datetime(timezone: Optional[str] = None) -> dict:
+    """
+    Return the current date, time, weekday, and UTC offset.
+
+    Args:
+        timezone: Optional IANA timezone name (e.g. "Asia/Kolkata", "America/New_York").
+                  Defaults to UTC when not provided.
+
+    Returns:
+        dict with date, time, datetime_iso, weekday, timezone, utc_offset_hours.
+    """
+    tz = pytz.timezone(timezone) if timezone else pytz.utc
+    now = datetime.now(tz)
+    return {
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
+        "datetime_iso": now.isoformat(),
+        "weekday": now.strftime("%A"),
+        "timezone": str(tz),
+        "utc_offset_hours": now.utcoffset().total_seconds() / 3600,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Tool 3 – Planetary positions (birth chart)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -194,7 +222,7 @@ def get_planet_positions(
 
 
 # ---------------------------------------------------------------------------
-# Tool 3 – Panchang
+# Tool 4 – Panchang
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -253,7 +281,7 @@ def get_panchang(
 
 
 # ---------------------------------------------------------------------------
-# Tool 4 – Vimshottari Dasa
+# Tool 5 – Vimshottari Dasa
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -305,7 +333,7 @@ def get_dasa(
 
 
 # ---------------------------------------------------------------------------
-# Tool 5 – Divisional charts (Vargas)
+# Tool 6 – Divisional charts (Vargas)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -353,7 +381,7 @@ def get_vargas(
 
 
 # ---------------------------------------------------------------------------
-# Tool 6 – Psychic profile
+# Tool 7 – Psychic profile
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -399,7 +427,7 @@ def generate_psychic_profile(
 
 
 # ---------------------------------------------------------------------------
-# Tool 7 – Numerology
+# Tool 8 – Numerology
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -443,7 +471,7 @@ def analyze_name_numerology(name: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tool 8 – Tara Bala
+# Tool 9 – Tara Bala
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -466,7 +494,7 @@ def calculate_tara_bala(birth_nakshatra_number: int, transit_nakshatra_number: i
 
 
 # ---------------------------------------------------------------------------
-# Tool 9 – Reference: nakshatras
+# Tool 10 – Reference: nakshatras
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -476,7 +504,7 @@ def list_nakshatras() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Tool 10 – 5-Step daily workflow
+# Tool 11 – 5-Step daily workflow
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -634,7 +662,7 @@ def daily_five_step(
 
 
 # ---------------------------------------------------------------------------
-# Tool 11 – Shadbala (six-fold planetary strength)
+# Tool 12 – Shadbala (six-fold planetary strength)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -685,7 +713,7 @@ def get_shadbala(
 
 
 # ---------------------------------------------------------------------------
-# Tool 12 – Birth yogas
+# Tool 13 – Birth yogas
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
@@ -748,7 +776,7 @@ def get_birth_yogas(
 
 
 # ---------------------------------------------------------------------------
-# Tool 13 – Avastha (planetary states)
+# Tool 14 – Avastha (planetary states)
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
