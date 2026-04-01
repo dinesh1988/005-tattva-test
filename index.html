@@ -998,7 +998,7 @@
     </div><!-- /.container -->
     
     <script>
-        const DEFAULT_API_BASE = 'http://localhost:8000/api/v1';
+        const DEFAULT_API_BASE = 'http://localhost:8002/api/v1';
         const CLOUD_RUN_API_BASE = 'https://tattva-api-ap34h5ieya-uc.a.run.app/api/v1';
         const API_BASE_STORAGE_KEY = 'tattvaApiBaseV1';
 
@@ -1045,7 +1045,7 @@
         function setPreset(preset) {
             const presets = {
                 cloudrun: CLOUD_RUN_API_BASE,
-                localhost: 'http://localhost:8000/api/v1'
+                localhost: 'http://localhost:8002/api/v1'
             };
             const value = presets[preset];
             if (!value) return;
