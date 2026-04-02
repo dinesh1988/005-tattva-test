@@ -729,9 +729,12 @@ def get_birth_yogas(
     """
     Identify Vedic birth yogas (planetary combinations) in a horoscope.
 
-    Checks 21 classical yogas including Pancha Mahapurusha (Hamsa, Malavya,
+    Checks 44 classical yogas including Pancha Mahapurusha (Hamsa, Malavya,
     Bhadra, Ruchaka, Sasha), GajaKesari, Viparita Raja yogas, wealth yogas
-    (Lakshmi, Chatussagara, Vasumathi, Parvata), and lunar yogas.
+    (Lakshmi, Chatussagara, Vasumathi, Parvata), lunar yogas, solar
+    hemispherical yogas (Vesi, Vasi, Ubhayachari), knowledge yogas
+    (Saraswati, Nipuna, Kalanidhi), power yogas (Kesari, Mahabhagya,
+    Chamara, Akhanda Samrajya, Shiva), and Sanyasa Yoga.
 
     Args:
         birth_date: Birth date YYYY-MM-DD.
@@ -740,7 +743,7 @@ def get_birth_yogas(
         birth_latitude: Birth latitude override.
         birth_longitude: Birth longitude override.
         birth_timezone: IANA timezone override.
-        only_occurring: If True, return only yogas that are present (default False = all 21).
+        only_occurring: If True, return only yogas that are present (default False = all 44).
 
     Returns:
         summary dict + list of yogas with name, nature, occurring, description, condition.
