@@ -818,6 +818,24 @@ def get_all_yogas(time: 'AstroTime') -> List[Yoga]:
     yogas.append(check_chandra_mangala_adhi_yoga(time))
     yogas.append(check_budha_chandra_yoga(time))
 
+    # Specific Malika Yogas (house-chain variants from each bhava)
+    yogas.append(check_lagna_malika_yoga(time))
+    yogas.append(check_dhana_malika_yoga(time))
+    yogas.append(check_vikrama_malika_yoga(time))
+    yogas.append(check_sukha_malika_yoga(time))
+    yogas.append(check_putra_malika_yoga(time))
+    yogas.append(check_satru_malika_yoga(time))
+    yogas.append(check_kalatra_malika_yoga(time))
+    yogas.append(check_randhra_malika_yoga(time))
+    yogas.append(check_bhagya_malika_yoga(time))
+    yogas.append(check_karma_malika_yoga(time))
+
+    # Royal and classical yogas
+    yogas.append(check_rajalakshana_yoga(time))
+    yogas.append(check_vanchana_chora_bheethi_yoga(time))
+    yogas.append(check_gauri_yoga(time))
+    yogas.append(check_bharathi_yoga(time))
+
     return yogas
 
 
@@ -5211,6 +5229,538 @@ def check_budha_chandra_yoga(time: 'AstroTime') -> Yoga:
         )
     except Exception as e:
         return Yoga("Budha-Chandra Yoga", YogaNature.GOOD, False, "Intelligence and communication", f"Error: {str(e)}")
+
+
+# ========================================
+# SPECIFIC MALIKA YOGAS (House Chain from Bhava)
+# ========================================
+
+def _malika_chain_from_house(start_house: int, time: 'AstroTime') -> tuple:
+    """
+    Internal helper: verify that each of the 7 consecutive houses
+    starting from start_house is occupied by at least one classical
+    planet (Sun through Saturn, Rahu/Ketu excluded).
+
+    Returns:
+        (occurring: bool, condition_str: str)
+    """
+    from .calculate import get_planet_longitude, get_lagnam
+    from .consts import Planet
+
+    lagna_long = get_lagnam(time)
+    lagna_sign = int(lagna_long // 30)
+    classical = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                 Planet.Jupiter, Planet.Venus, Planet.Saturn]
+
+    occupied = set()
+    for p in classical:
+        p_sign = int(get_planet_longitude(p, time) // 30)
+        h = ((p_sign - lagna_sign) % 12) + 1
+        occupied.add(h)
+
+    chain = [((start_house - 1 + i) % 12) + 1 for i in range(7)]
+    missing = [h for h in chain if h not in occupied]
+    occurring = len(missing) == 0
+    end_label = chain[-1]
+    chain_str = (
+        f"H{chain[0]}-H{end_label} chain occupied={sorted(occupied)}"
+        + (f", missing H{missing}" if missing else " — all 7 filled")
+    )
+    return occurring, chain_str
+
+
+def check_lagna_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Lagna Malika Yoga — Planetary Garland from the 1st House.
+
+    Condition: All 7 classical planets (Sun–Saturn, excluding Rahu/Ketu)
+               each occupy one of 7 consecutive houses starting from
+               the Ascendant (houses 1 through 7 all occupied).
+    Effect: King, ruler or commander, wealthy.
+
+    Reference: Phaladeepika; Sarvartha Chintamani — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(1, time)
+        return Yoga(
+            name="Lagna Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="King, ruler or commander, wealthy",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Lagna Malika Yoga", YogaNature.GOOD, False,
+                   "King, ruler or commander, wealthy", f"Error: {str(e)}")
+
+
+def check_dhana_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Dhana Malika Yoga — Planetary Garland from the 2nd House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 2nd house (houses 2 through 8 all occupied).
+    Effect: Very wealthy, dutiful, resolute and unsympathetic.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(2, time)
+        return Yoga(
+            name="Dhana Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Very wealthy, dutiful, resolute and unsympathetic",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Dhana Malika Yoga", YogaNature.GOOD, False,
+                   "Very wealthy, dutiful, resolute", f"Error: {str(e)}")
+
+
+def check_vikrama_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Vikrama Malika Yoga — Planetary Garland from the 3rd House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 3rd house (houses 3 through 9 all occupied).
+    Effect: Ruler, rich, surrounded by brave men.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(3, time)
+        return Yoga(
+            name="Vikrama Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Ruler, rich, surrounded by brave men",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Vikrama Malika Yoga", YogaNature.GOOD, False,
+                   "Ruler, rich, surrounded by brave men", f"Error: {str(e)}")
+
+
+def check_sukha_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Sukha Malika Yoga — Planetary Garland from the 4th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 4th house (houses 4 through 10 all occupied).
+    Effect: Charitable and wealthy.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(4, time)
+        return Yoga(
+            name="Sukha Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Charitable and wealthy",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Sukha Malika Yoga", YogaNature.GOOD, False,
+                   "Charitable and wealthy", f"Error: {str(e)}")
+
+
+def check_putra_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Putra Malika Yoga — Planetary Garland from the 5th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 5th house (houses 5 through 11 all occupied).
+    Effect: Highly religious and famous.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(5, time)
+        return Yoga(
+            name="Putra Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Highly religious and famous",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Putra Malika Yoga", YogaNature.GOOD, False,
+                   "Highly religious and famous", f"Error: {str(e)}")
+
+
+def check_satru_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Satru Malika Yoga — Planetary Garland from the 6th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 6th house (houses 6 through 12 all occupied).
+    Effect: Greedy and somewhat poor.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(6, time)
+        return Yoga(
+            name="Satru Malika Yoga",
+            nature=YogaNature.BAD,
+            occurring=occurring,
+            description="Greedy and somewhat poor",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Satru Malika Yoga", YogaNature.BAD, False,
+                   "Greedy and somewhat poor", f"Error: {str(e)}")
+
+
+def check_kalatra_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Kalatra Malika Yoga — Planetary Garland from the 7th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 7th house (houses 7 through 1, wrapping).
+    Effect: Coveted by women and influential.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(7, time)
+        return Yoga(
+            name="Kalatra Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Coveted by women and influential",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Kalatra Malika Yoga", YogaNature.GOOD, False,
+                   "Coveted by women and influential", f"Error: {str(e)}")
+
+
+def check_randhra_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Randhra Malika Yoga — Planetary Garland from the 8th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 8th house (houses 8 through 2, wrapping).
+    Effect: Poor and hen-pecked.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(8, time)
+        return Yoga(
+            name="Randhra Malika Yoga",
+            nature=YogaNature.BAD,
+            occurring=occurring,
+            description="Poor and hen-pecked",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Randhra Malika Yoga", YogaNature.BAD, False,
+                   "Poor and hen-pecked", f"Error: {str(e)}")
+
+
+def check_bhagya_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Bhagya Malika Yoga — Planetary Garland from the 9th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 9th house (houses 9 through 3, wrapping).
+    Effect: Religious, well-to-do, mighty and good.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(9, time)
+        return Yoga(
+            name="Bhagya Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Religious, well-to-do, mighty and good",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Bhagya Malika Yoga", YogaNature.GOOD, False,
+                   "Religious, well-to-do, mighty and good", f"Error: {str(e)}")
+
+
+def check_karma_malika_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Karma Malika Yoga — Planetary Garland from the 10th House.
+
+    Condition: All 7 classical planets occupy 7 consecutive houses
+               starting from the 10th house (houses 10 through 4, wrapping).
+    Effect: Career excellence, karmic fulfillment, respected for deeds.
+
+    Reference: Phaladeepika — Malika Yoga chapter.
+    """
+    try:
+        occurring, chain_str = _malika_chain_from_house(10, time)
+        return Yoga(
+            name="Karma Malika Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Career excellence, karmic fulfillment, respected for deeds",
+            condition=chain_str,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Karma Malika Yoga", YogaNature.GOOD, False,
+                   "Career excellence, karmic fulfillment", f"Error: {str(e)}")
+
+
+# ========================================
+# ROYAL / SPECIAL CLASSICAL YOGAS
+# ========================================
+
+def check_rajalakshana_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Rajalakshana Yoga (Royal Marks Yoga).
+
+    Condition: Jupiter, Venus, Mercury and Moon should all be in Lagna
+               (house 1) or all placed in kendra houses (1st, 4th, 7th, 10th).
+    Effect: Attractive appearance, endowed with all good qualities of
+            high personages.
+
+    Reference: VedAstro HoroscopeName — RajalakshanaYoga.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+        kendra = {1, 4, 7, 10}
+
+        planets_to_check = [Planet.Jupiter, Planet.Venus, Planet.Mercury, Planet.Moon]
+        houses = {}
+        for p in planets_to_check:
+            p_sign = int(get_planet_longitude(p, time) // 30)
+            houses[p] = ((p_sign - lagna_sign) % 12) + 1
+
+        all_in_lagna  = all(h == 1 for h in houses.values())
+        all_in_kendra = all(h in kendra for h in houses.values())
+        occurring = all_in_lagna or all_in_kendra
+
+        return Yoga(
+            name="Rajalakshana Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Attractive appearance, endowed with all good qualities of high personages",
+            condition=(
+                f"Jupiter H{houses[Planet.Jupiter]}, Venus H{houses[Planet.Venus]}, "
+                f"Mercury H{houses[Planet.Mercury]}, Moon H{houses[Planet.Moon]} "
+                f"(all in kendra={all_in_kendra})"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Rajalakshana Yoga", YogaNature.GOOD, False,
+                   "Royal appearance, good qualities of high personages", f"Error: {str(e)}")
+
+
+def check_vanchana_chora_bheethi_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Vanchana-Chora-Bheethi Yoga (Fear of Deceit and Thieves).
+
+    Condition (any one of):
+    (a) Lagna is occupied by a malefic planet (Sun, Mars, Saturn, Rahu or Ketu).
+    (b) Lord of Lagna is conjunct Saturn, Rahu, or Ketu (same sign).
+    Note: Classical texts also cite Gulika-in-trine conditions; Gulika/Mandi
+          calculation is not yet implemented in this module.
+    Effect: Always suspicious; afraid of being cheated, swindled, and robbed.
+
+    Reference: VedAstro HoroscopeName — VanchanaChoraBheethiYoga.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .lordship import get_lord_of_house
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+
+        all_with_nodes = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                          Planet.Jupiter, Planet.Venus, Planet.Saturn,
+                          Planet.Rahu, Planet.Ketu]
+        malefics   = {Planet.Sun, Planet.Mars, Planet.Saturn, Planet.Rahu, Planet.Ketu}
+        afflictors = {Planet.Saturn, Planet.Rahu, Planet.Ketu}
+
+        planet_signs  = {p: int(get_planet_longitude(p, time) // 30) for p in all_with_nodes}
+        planet_houses = {p: ((planet_signs[p] - lagna_sign) % 12) + 1 for p in all_with_nodes}
+
+        # (a) Malefic in Lagna
+        malefics_in_lagna = [p.name for p in malefics if planet_houses[p] == 1]
+        cond_a = bool(malefics_in_lagna)
+
+        # (b) Lagna lord conjunct Saturn/Rahu/Ketu
+        lord_1 = get_lord_of_house(1, time)
+        lord_1_sign = planet_signs.get(lord_1, -1)
+        cond_b_planets = [p.name for p in afflictors if planet_signs[p] == lord_1_sign]
+        cond_b = bool(cond_b_planets)
+
+        occurring = cond_a or cond_b
+        details = []
+        if cond_a:
+            details.append(f"malefic(s) in H1: {malefics_in_lagna}")
+        if cond_b:
+            details.append(f"Lagna lord {lord_1.name} conjunct {cond_b_planets}")
+        if not details:
+            details.append("no affliction conditions met")
+
+        return Yoga(
+            name="Vanchana-Chora-Bheethi Yoga",
+            nature=YogaNature.BAD,
+            occurring=occurring,
+            description="Always suspicious; afraid of being cheated, swindled, and robbed",
+            condition="; ".join(details),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Vanchana-Chora-Bheethi Yoga", YogaNature.BAD, False,
+                   "Fear of deception and theft", f"Error: {str(e)}")
+
+
+def check_gauri_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Gauri Yoga.
+
+    Condition: The lord of the Navamsa (D9) sign occupied by the 10th lord
+               must be (a) placed in the 10th house in exaltation AND
+               (b) conjunct (same sign as) the lord of the Ascendant.
+    Effect: Respectable family, owns lands, charitable, religious, sons of
+            good character, praised by all.
+
+    Reference: Jataka Parijata — GauriYoga; VedAstro HoroscopeName.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .lordship import get_lord_of_house, get_lord_of_sign
+        from .varga import get_d9_navamsa
+        from .avastha import get_dignity_status
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+
+        # Step 1: 10th lord and its longitude
+        lord_10 = get_lord_of_house(10, time)
+        lord_10_long = get_planet_longitude(lord_10, time)
+
+        # Step 2: D9 navamsa sign of the 10th lord (sign_num is 1-indexed)
+        _, navamsa_sign_num = get_d9_navamsa(lord_10_long)
+        navamsa_lord = get_lord_of_sign(navamsa_sign_num - 1)
+
+        # Step 3: Navamsa lord in 10th house and exalted
+        navamsa_lord_long  = get_planet_longitude(navamsa_lord, time)
+        navamsa_lord_sign  = int(navamsa_lord_long // 30)
+        navamsa_lord_house = ((navamsa_lord_sign - lagna_sign) % 12) + 1
+        dignity, score     = get_dignity_status(navamsa_lord.name, navamsa_lord_long)
+        in_10th_exalted    = (navamsa_lord_house == 10) and (score >= 5)
+
+        # Step 4: Navamsa lord conjunct lagna lord (same sign)
+        lord_1      = get_lord_of_house(1, time)
+        lord_1_long = get_planet_longitude(lord_1, time)
+        lord_1_sign = int(lord_1_long // 30)
+        conjunct_lagna_lord = (navamsa_lord_sign == lord_1_sign)
+
+        occurring = in_10th_exalted and conjunct_lagna_lord
+        return Yoga(
+            name="Gauri Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Respectable family, landowner, charitable, religious, praised by all",
+            condition=(
+                f"10th lord {lord_10.name} D9-sign {navamsa_sign_num} "
+                f"→ navamsa lord {navamsa_lord.name} H{navamsa_lord_house} ({dignity}); "
+                f"Lagna lord {lord_1.name} sign {lord_1_sign + 1} "
+                f"(conjunct navamsa lord={conjunct_lagna_lord})"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Gauri Yoga", YogaNature.GOOD, False,
+                   "Respectable family, charitable, praised by all", f"Error: {str(e)}")
+
+
+def check_bharathi_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Bharathi Yoga.
+
+    Condition: The lords of the 2nd, 5th, and 11th houses must all fall
+               in the same Navamsa (D9) sign. The lord of that common D9
+               sign must be exalted AND conjunct (same sign as) the 9th lord.
+    Effect: World famous, reputed scholar, fond of music, romantic, handsome,
+            attractive, religiously inclined, bewitching eyes.
+
+    Reference: Classical texts — BharathiYoga; VedAstro HoroscopeName.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+        from .lordship import get_lord_of_house, get_lord_of_sign
+        from .varga import get_d9_navamsa
+        from .avastha import get_dignity_status
+
+        lord_2  = get_lord_of_house(2,  time)
+        lord_5  = get_lord_of_house(5,  time)
+        lord_11 = get_lord_of_house(11, time)
+
+        long_2  = get_planet_longitude(lord_2,  time)
+        long_5  = get_planet_longitude(lord_5,  time)
+        long_11 = get_planet_longitude(lord_11, time)
+
+        _, d9_2  = get_d9_navamsa(long_2)
+        _, d9_5  = get_d9_navamsa(long_5)
+        _, d9_11 = get_d9_navamsa(long_11)
+
+        same_d9 = (d9_2 == d9_5 == d9_11)
+
+        nv_exalted   = False
+        nv_conj_9    = False
+        nv_lord_info = "N/A"
+
+        if same_d9:
+            navamsa_lord = get_lord_of_sign(d9_2 - 1)
+            nv_long      = get_planet_longitude(navamsa_lord, time)
+            dignity, score = get_dignity_status(navamsa_lord.name, nv_long)
+            nv_exalted   = (score >= 5)
+            lord_9       = get_lord_of_house(9, time)
+            lord_9_long  = get_planet_longitude(lord_9, time)
+            nv_sign      = int(nv_long // 30)
+            l9_sign      = int(lord_9_long // 30)
+            nv_conj_9    = (nv_sign == l9_sign)
+            nv_lord_info = (
+                f"{navamsa_lord.name} {dignity} sign {nv_sign + 1}; "
+                f"9th lord {lord_9.name} sign {l9_sign + 1} (conjunct={nv_conj_9})"
+            )
+
+        occurring = same_d9 and nv_exalted and nv_conj_9
+        return Yoga(
+            name="Bharathi Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="World famous, reputed scholar, fond of music, romantic, handsome, bewitching eyes",
+            condition=(
+                f"2nd/5th/11th lords same D9={same_d9} (D9 {d9_2},{d9_5},{d9_11}); "
+                f"{nv_lord_info}"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Bharathi Yoga", YogaNature.GOOD, False,
+                   "World famous, scholar, musical, handsome", f"Error: {str(e)}")
 
 
 def get_occurring_yogas(time: 'AstroTime') -> List[Yoga]:
