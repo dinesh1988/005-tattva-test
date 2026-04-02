@@ -74,7 +74,7 @@ app = FastAPI(
     ## Key Features
     
     - **Birth Charts**: Planetary positions, Lagna, house placements
-    - **Yogas**: 21+ yoga combinations including Raj, Dhana, and Pancha Mahapurusha yogas
+    - **Yogas**: 115 yoga combinations including Raj, Dhana, Pancha Mahapurusha, Malika, and many more
     - **Panchang**: Tithi, Nakshatra, Yoga, Karana calculations
     - **Dasa Periods**: Vimshottari Dasa system with sub-periods
     - **Divisional Charts**: D1 through D60 varga calculations
@@ -329,7 +329,7 @@ async def health_check():
             "version": APP_VERSION,
             "build_id": BUILD_ID,
             "environment": ENVIRONMENT,
-            "yogas": 21,
+            "yogas": 115,
             "modules": 18
         }
     )
@@ -344,7 +344,7 @@ async def root():
         "build_id": BUILD_ID,
         "environment": ENVIRONMENT,
         "total_combinations": 1296,
-        "yogas_implemented": 21,
+        "yogas_implemented": 115,
         "modules": 18,
         "docs": "/docs",
         "health": "/health"
