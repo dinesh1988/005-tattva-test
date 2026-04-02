@@ -5,7 +5,7 @@ Ved Astro - Yogas Module
 Implements detection of 94 traditional Vedic astrology Yogas (planetary combinations)
 plus 1000+ astrological events from muhurtha (electional astrology).
 
-## Implemented Yogas (32 total):
+## Implemented Yogas (44 total):
 
 ### Classic Moon-Based Yogas (4):
 - **GajaKesari** - Jupiter in kendra from Moon (wealth, wisdom)
@@ -706,6 +706,26 @@ def get_all_yogas(time: 'AstroTime') -> List[Yoga]:
     # Planetary chain yogas
     yogas.append(check_graha_malika_yoga(time))
     yogas.append(check_parivartana_yoga(time))
+
+    # Solar hemispherical yogas
+    yogas.append(check_vesi_yoga(time))
+    yogas.append(check_vasi_yoga(time))
+    yogas.append(check_ubhayachari_yoga(time))
+
+    # Knowledge & arts yogas
+    yogas.append(check_saraswati_yoga(time))
+    yogas.append(check_nipuna_yoga(time))
+    yogas.append(check_kalanidhi_yoga(time))
+
+    # Power / fortunate yogas
+    yogas.append(check_kesari_yoga(time))
+    yogas.append(check_mahabhagya_yoga(time))
+    yogas.append(check_chamara_yoga(time))
+    yogas.append(check_akhanda_samrajya_yoga(time))
+    yogas.append(check_shiva_yoga(time))
+
+    # Renunciation yogas
+    yogas.append(check_sanyasa_yoga(time))
 
     return yogas
 
@@ -2082,6 +2102,540 @@ def check_parivartana_yoga(time: 'AstroTime') -> Yoga:
     except Exception as e:
         return Yoga("Parivartana Yoga", YogaNature.GOOD, False,
                    "Mutual sign exchange", f"Error: {str(e)}")
+
+
+# ========================================
+# SOLAR HEMISPHERICAL YOGAS
+# ========================================
+
+def check_vesi_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Vesi Yoga - Planets (other than Moon) in the 2nd house from Sun.
+
+    Condition: Any planet except Moon occupies the sign immediately following
+               the Sun's sign (2nd from Sun).
+    Effect: Eloquent, wealthy, long-lived, happy, virtuous, charitable.
+
+    Reference: Brihat Parashara Hora Shastra.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+
+        sun_sign = int(get_planet_longitude(Planet.Sun, time) // 30)
+        target_sign = (sun_sign + 1) % 12
+
+        qualifiers = [Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus,
+                      Planet.Saturn, Planet.Rahu, Planet.Ketu]
+        planets_in_2nd = [
+            p.name for p in qualifiers
+            if int(get_planet_longitude(p, time) // 30) == target_sign
+        ]
+        occurring = bool(planets_in_2nd)
+        return Yoga(
+            name="Vesi Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Eloquent, wealthy, long-lived, happy, virtuous, charitable",
+            condition=f"Planets in 2nd from Sun (sign {target_sign + 1}): {', '.join(planets_in_2nd)}"
+                      if occurring else f"No planet in 2nd from Sun (sign {target_sign + 1})",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Vesi Yoga", YogaNature.GOOD, False, "Eloquence and wealth", f"Error: {str(e)}")
+
+
+def check_vasi_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Vasi Yoga - Planets (other than Moon) in the 12th house from Sun.
+
+    Condition: Any planet except Moon occupies the sign immediately preceding
+               the Sun's sign (12th from Sun).
+    Effect: Steady in work, generous, famous, fortunate, respected.
+
+    Reference: Brihat Parashara Hora Shastra.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+
+        sun_sign = int(get_planet_longitude(Planet.Sun, time) // 30)
+        target_sign = (sun_sign - 1) % 12
+
+        qualifiers = [Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus,
+                      Planet.Saturn, Planet.Rahu, Planet.Ketu]
+        planets_in_12th = [
+            p.name for p in qualifiers
+            if int(get_planet_longitude(p, time) // 30) == target_sign
+        ]
+        occurring = bool(planets_in_12th)
+        return Yoga(
+            name="Vasi Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Steady in work, generous, famous, fortunate, well respected",
+            condition=f"Planets in 12th from Sun (sign {target_sign + 1}): {', '.join(planets_in_12th)}"
+                      if occurring else f"No planet in 12th from Sun (sign {target_sign + 1})",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Vasi Yoga", YogaNature.GOOD, False, "Fame and generosity", f"Error: {str(e)}")
+
+
+def check_ubhayachari_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Ubhayachari Yoga - Planets on both sides of the Sun (2nd and 12th).
+
+    Condition: Planets (except Moon) occupy BOTH the 2nd AND the 12th sign
+               from the Sun simultaneously.
+    Effect: Royal appearance, affluent, good orator, powerful, many servants,
+            famous in three worlds (considered very auspicious).
+
+    Reference: Brihat Parashara Hora Shastra.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+
+        sun_sign = int(get_planet_longitude(Planet.Sun, time) // 30)
+        sign_2nd = (sun_sign + 1) % 12
+        sign_12th = (sun_sign - 1) % 12
+
+        qualifiers = [Planet.Mars, Planet.Mercury, Planet.Jupiter, Planet.Venus,
+                      Planet.Saturn, Planet.Rahu, Planet.Ketu]
+
+        in_2nd = [p.name for p in qualifiers if int(get_planet_longitude(p, time) // 30) == sign_2nd]
+        in_12th = [p.name for p in qualifiers if int(get_planet_longitude(p, time) // 30) == sign_12th]
+
+        occurring = bool(in_2nd) and bool(in_12th)
+        return Yoga(
+            name="Ubhayachari Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Royal appearance, affluent, powerful orator, famous, many servants",
+            condition=f"2nd from Sun: {', '.join(in_2nd) or 'none'}; 12th from Sun: {', '.join(in_12th) or 'none'}",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Ubhayachari Yoga", YogaNature.GOOD, False, "Royal and affluent", f"Error: {str(e)}")
+
+
+# ========================================
+# KNOWLEDGE & ARTS YOGAS
+# ========================================
+
+def check_saraswati_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Saraswati Yoga - Jupiter, Venus, and Mercury in kendras or trikonas.
+
+    Condition: Jupiter, Venus, and Mercury are all placed in kendra (1,4,7,10)
+               or trikona (1,5,9) houses from the Ascendant.
+    Effect: Highly intelligent, poet, scholar, skilled in arts and music,
+            famous, wealthy, speaks authoritatively.
+
+    Reference: Saravali, Brihat Parashara Hora Shastra.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+        kendra_trikona = {1, 4, 5, 7, 9, 10}
+
+        placement = {}
+        for planet in [Planet.Jupiter, Planet.Venus, Planet.Mercury]:
+            p_sign = int(get_planet_longitude(planet, time) // 30)
+            house = ((p_sign - lagna_sign) % 12) + 1
+            placement[planet.name] = house
+
+        all_in_kt = all(h in kendra_trikona for h in placement.values())
+        occurring = all_in_kt
+        details = "; ".join(f"{p} in house {h}" for p, h in placement.items())
+        return Yoga(
+            name="Saraswati Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Highly intelligent, poet, scholar, skilled in arts, famous and wealthy",
+            condition=details,
+            strength=100 if occurring else int(sum(1 for h in placement.values() if h in kendra_trikona) / 3 * 100),
+        )
+    except Exception as e:
+        return Yoga("Saraswati Yoga", YogaNature.GOOD, False, "Learning and arts", f"Error: {str(e)}")
+
+
+def check_nipuna_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Nipuna Yoga (Buddha-Guru Yoga) - Mercury and Jupiter conjunction.
+
+    Condition: Mercury and Jupiter are in the same sign.
+    Effect: Great intelligence, philosophical depth, excellent teacher or guru,
+            skilled in logic and debate.
+
+    Reference: Jataka Parijata.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+
+        mercury_sign = int(get_planet_longitude(Planet.Mercury, time) // 30)
+        jupiter_sign = int(get_planet_longitude(Planet.Jupiter, time) // 30)
+        occurring = mercury_sign == jupiter_sign
+        return Yoga(
+            name="Nipuna Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Great intelligence, philosophical depth, excellent teacher, skilled in logic",
+            condition=f"Mercury and Jupiter both in sign {mercury_sign + 1}"
+                      if occurring else f"Mercury in sign {mercury_sign + 1}, Jupiter in sign {jupiter_sign + 1}",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Nipuna Yoga", YogaNature.GOOD, False, "Great intelligence", f"Error: {str(e)}")
+
+
+def check_kalanidhi_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Kalanidhi Yoga - Jupiter in 2nd or 5th with Mercury or Venus.
+
+    Condition: Jupiter is in the 2nd or 5th house from Lagna AND is conjunct
+               (same sign as) Mercury or Venus.
+    Effect: Skillful in arts and sciences, respected by kings, healthy,
+            famous, eloquent, prosperous.
+
+    Reference: Phaladeepika ch.6 (Mantreswara).
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+
+        jupiter_sign = int(get_planet_longitude(Planet.Jupiter, time) // 30)
+        jupiter_house = ((jupiter_sign - lagna_sign) % 12) + 1
+
+        mercury_sign = int(get_planet_longitude(Planet.Mercury, time) // 30)
+        venus_sign = int(get_planet_longitude(Planet.Venus, time) // 30)
+
+        jupiter_in_target = jupiter_house in [2, 5]
+        jupiter_with_mercury = jupiter_sign == mercury_sign
+        jupiter_with_venus = jupiter_sign == venus_sign
+
+        occurring = jupiter_in_target and (jupiter_with_mercury or jupiter_with_venus)
+        companion = []
+        if jupiter_with_mercury: companion.append("Mercury")
+        if jupiter_with_venus: companion.append("Venus")
+
+        return Yoga(
+            name="Kalanidhi Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Skilled in arts and sciences, respected, healthy, famous, eloquent",
+            condition=f"Jupiter in house {jupiter_house} with {', '.join(companion)}"
+                      if occurring else f"Jupiter in house {jupiter_house} (need 2nd/5th with Mercury/Venus)",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Kalanidhi Yoga", YogaNature.GOOD, False, "Arts and royal favour", f"Error: {str(e)}")
+
+
+# ========================================
+# POWER & FORTUNATE YOGAS
+# ========================================
+
+def check_kesari_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Kesari Yoga - Jupiter in kendra from Lagna (complementary to GajaKesari from Moon).
+
+    Condition: Jupiter occupies a kendra house (1st, 4th, 7th, or 10th)
+               from the Ascendant.
+    Effect: Fame, administrative ability, destroys enemies, generous,
+            respected and virtuous.
+
+    Reference: Phaladeepika, Brihat Parashara Hora Shastra.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+        jupiter_sign = int(get_planet_longitude(Planet.Jupiter, time) // 30)
+        jupiter_house = ((jupiter_sign - lagna_sign) % 12) + 1
+        occurring = jupiter_house in [1, 4, 7, 10]
+        return Yoga(
+            name="Kesari Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Fame, administrative ability, destroys enemies, generous, virtuous",
+            condition=f"Jupiter in house {jupiter_house} from Lagna",
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Kesari Yoga", YogaNature.GOOD, False, "Fame and virtue", f"Error: {str(e)}")
+
+
+def check_mahabhagya_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Mahabhagya Yoga - Great Luck combination based on gender and sign polarity.
+
+    Condition (Male): Born during day, Sun/Moon/Lagna all in odd signs (Aries, Gemini, Leo...).
+    Condition (Female): Born during night, Sun/Moon/Lagna all in even signs (Taurus, Cancer, Virgo...).
+    Note: We compute without gender - check both variants and report whichever applies.
+    Effect: Noble birth or deeds, wealthy, generous, happy, long life, ruler-like.
+
+    Reference: Brihat Parashara Hora Shastra, Saravali.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .sunrise import get_sun_times
+
+        lagna_long = get_lagnam(time)
+        sun_long = get_planet_longitude(Planet.Sun, time)
+        moon_long = get_planet_longitude(Planet.Moon, time)
+
+        lagna_sign = int(lagna_long // 30)
+        sun_sign = int(sun_long // 30)
+        moon_sign = int(moon_long // 30)
+
+        # Odd signs: 0,2,4,6,8,10 (Aries, Gemini, Leo, Libra, Sagittarius, Aquarius)
+        all_odd = all(s % 2 == 0 for s in [lagna_sign, sun_sign, moon_sign])
+        # Even signs: 1,3,5,7,9,11
+        all_even = all(s % 2 == 1 for s in [lagna_sign, sun_sign, moon_sign])
+
+        occurring = all_odd or all_even
+        variant = "Male variant (day birth, all odd signs)" if all_odd else \
+                  "Female variant (night birth, all even signs)" if all_even else "Not forming"
+        sign_names = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+                      "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+        condition = (
+            f"{variant} — Lagna:{sign_names[lagna_sign]}, Sun:{sign_names[sun_sign]}, Moon:{sign_names[moon_sign]}"
+        )
+        return Yoga(
+            name="Mahabhagya Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Great luck, noble deeds, wealthy, generous, long life, ruler-like prominence",
+            condition=condition,
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Mahabhagya Yoga", YogaNature.GOOD, False, "Great luck", f"Error: {str(e)}")
+
+
+def check_chamara_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Chamara Yoga - Lagna lord exalted in a kendra and aspected by Jupiter.
+
+    Condition: The lord of the Ascendant is (a) in its sign of exaltation,
+               (b) in a kendra house (1,4,7,10), and (c) aspected by Jupiter.
+    Effect: Eloquent, learned, ruler-like dignity, skilled in Vedic lore,
+            long-lived, comparable to a king.
+
+    Reference: Phaladeepika (Mantreswara), ch. 6.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .lordship import get_lord_of_house
+        from .avastha import get_dignity_status
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+        lagna_lord = get_lord_of_house(1, time)
+
+        lord_long = get_planet_longitude(lagna_lord, time)
+        lord_sign = int(lord_long // 30)
+        lord_house = ((lord_sign - lagna_sign) % 12) + 1
+
+        # Check exaltation
+        dignity, dignity_score = get_dignity_status(lagna_lord.name, lord_long)
+        is_exalted = dignity_score == 5
+
+        # Check kendra
+        in_kendra = lord_house in [1, 4, 7, 10]
+
+        # Check Jupiter aspect (Jupiter aspects 5th, 7th, 9th from its position)
+        jupiter_sign = int(get_planet_longitude(Planet.Jupiter, time) // 30)
+        jupiter_house = ((jupiter_sign - lagna_sign) % 12) + 1
+        jupiter_aspect_houses = [
+            ((jupiter_house + 4) % 12) or 12,
+            ((jupiter_house + 6) % 12) or 12,
+            ((jupiter_house + 8) % 12) or 12,
+        ]
+        jupiter_aspects_lord = lord_house in jupiter_aspect_houses
+
+        occurring = is_exalted and in_kendra and jupiter_aspects_lord
+        return Yoga(
+            name="Chamara Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Eloquent, learned, ruler-like dignity, skilled in Vedic lore, long-lived",
+            condition=(
+                f"Lagna lord {lagna_lord.name}: exalted={is_exalted}, house={lord_house} (kendra={in_kendra}), "
+                f"Jupiter aspect={jupiter_aspects_lord}"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Chamara Yoga", YogaNature.GOOD, False, "Ruler-like dignity", f"Error: {str(e)}")
+
+
+def check_akhanda_samrajya_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Akhanda Samrajya Yoga - Unbroken Empire Yoga.
+
+    Condition: Jupiter rules over the 2nd, 5th, or 11th house from the Moon sign
+               AND Jupiter is placed in a kendra from the Lagna AND the lord of
+               the Lagna is a strong planet (in kendra or trikona).
+    Effect: Becomes an emperor or very powerful ruler; dominion over vast territory;
+            unbroken reign, great authority.
+
+    Reference: Phaladeepika, Saravali.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .lordship import get_lord_of_sign
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+
+        moon_long = get_planet_longitude(Planet.Moon, time)
+        moon_sign = int(moon_long // 30)
+
+        jupiter_long = get_planet_longitude(Planet.Jupiter, time)
+        jupiter_sign = int(jupiter_long // 30)
+        jupiter_house_from_lagna = ((jupiter_sign - lagna_sign) % 12) + 1
+
+        # Check Jupiter rules 2nd, 5th, or 11th from Moon sign
+        # Jupiter rules Sagittarius (8) and Pisces (11)
+        jupiter_ruled_signs = [8, 11]
+        target_houses_from_moon = [2, 5, 11]
+        jupiter_rules_target = False
+        for h in target_houses_from_moon:
+            sign_of_house = (moon_sign + h - 1) % 12
+            if sign_of_house in jupiter_ruled_signs:
+                jupiter_rules_target = True
+                break
+
+        # Check Jupiter in kendra from Lagna
+        jupiter_in_kendra = jupiter_house_from_lagna in [1, 4, 7, 10]
+
+        occurring = jupiter_rules_target and jupiter_in_kendra
+        return Yoga(
+            name="Akhanda Samrajya Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Emperor-like power, unbroken dominion, vast authority, great ruler",
+            condition=(
+                f"Jupiter rules 2nd/5th/11th from Moon={jupiter_rules_target}; "
+                f"Jupiter in kendra from Lagna (house {jupiter_house_from_lagna})={jupiter_in_kendra}"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Akhanda Samrajya Yoga", YogaNature.GOOD, False, "Emperor-like power", f"Error: {str(e)}")
+
+
+def check_shiva_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Shiva Yoga - Lord of 5th in 9th, lord of 9th in 10th, lord of 10th in 5th.
+
+    Condition: The lords of the 5th, 9th, and 10th houses are placed in each
+               other’s houses in a specific triangular exchange.
+    Effect: Devotee of Shiva, virtuous, wealthy, performer of religious deeds,
+            pleasure-loving, respected, attains salvation.
+
+    Reference: Jataka Parijata, Saravali.
+    """
+    try:
+        from .calculate import get_planet_longitude, get_lagnam
+        from .consts import Planet
+        from .lordship import get_lord_of_house
+
+        lagna_long = get_lagnam(time)
+        lagna_sign = int(lagna_long // 30)
+
+        lord_5 = get_lord_of_house(5, time)
+        lord_9 = get_lord_of_house(9, time)
+        lord_10 = get_lord_of_house(10, time)
+
+        def get_house(planet):
+            p_sign = int(get_planet_longitude(planet, time) // 30)
+            return ((p_sign - lagna_sign) % 12) + 1
+
+        lord5_house = get_house(lord_5)
+        lord9_house = get_house(lord_9)
+        lord10_house = get_house(lord_10)
+
+        # 5th lord in 9th, 9th lord in 10th, 10th lord in 5th
+        occurring = (lord5_house == 9) and (lord9_house == 10) and (lord10_house == 5)
+        return Yoga(
+            name="Shiva Yoga",
+            nature=YogaNature.GOOD,
+            occurring=occurring,
+            description="Virtuous, wealthy, devotional, religious, attains salvation",
+            condition=(
+                f"5th lord ({lord_5.name}) in house {lord5_house} (need 9); "
+                f"9th lord ({lord_9.name}) in house {lord9_house} (need 10); "
+                f"10th lord ({lord_10.name}) in house {lord10_house} (need 5)"
+            ),
+            strength=100 if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Shiva Yoga", YogaNature.GOOD, False, "Virtue and devotion", f"Error: {str(e)}")
+
+
+# ========================================
+# RENUNCIATION YOGAS
+# ========================================
+
+def check_sanyasa_yoga(time: 'AstroTime') -> Yoga:
+    """
+    Sanyasa Yoga - Four or more planets in a single sign.
+
+    Condition: Four or more classical planets (Sun through Saturn) occupy
+               the same zodiac sign.
+    Effect: Renunciation, spiritual inclination, hermit tendencies, deep
+            concentration; the specific sign and planets colour the expression.
+
+    Reference: Brihat Parashara Hora Shastra, Uttara Kalamrita.
+    """
+    try:
+        from .calculate import get_planet_longitude
+        from .consts import Planet
+
+        classical = [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                     Planet.Jupiter, Planet.Venus, Planet.Saturn]
+
+        sign_count: dict = {}
+        for planet in classical:
+            s = int(get_planet_longitude(planet, time) // 30)
+            sign_count.setdefault(s, []).append(planet.name)
+
+        max_sign = max(sign_count, key=lambda s: len(sign_count[s]))
+        planets_there = sign_count[max_sign]
+        occurring = len(planets_there) >= 4
+
+        sign_names = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+                      "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+        return Yoga(
+            name="Sanyasa Yoga",
+            nature=YogaNature.NEUTRAL,
+            occurring=occurring,
+            description="Renunciation, spiritual inclination, hermit tendencies, deep concentration",
+            condition=(
+                f"{len(planets_there)} planets in {sign_names[max_sign]}: {', '.join(planets_there)}"
+                if occurring else
+                f"Max planets in one sign: {len(planets_there)} (need 4+)"
+            ),
+            strength=min(100, (len(planets_there) - 3) * 33) if occurring else 0,
+        )
+    except Exception as e:
+        return Yoga("Sanyasa Yoga", YogaNature.NEUTRAL, False, "Renunciation", f"Error: {str(e)}")
 
 
 def get_occurring_yogas(time: 'AstroTime') -> List[Yoga]:
