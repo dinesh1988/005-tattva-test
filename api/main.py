@@ -212,18 +212,27 @@ class PsychicProfileResponse(BaseModel):
 
 
 class CompatibilityRequest(BaseModel):
-    """Request for compatibility check."""
-    profile1_id: str = Field(..., description="First profile ID")
-    profile2_id: str = Field(..., description="Second profile ID")
+    """Request for Kundali / Ashtakuta compatibility check."""
+    male_profile_id: str = Field(..., description="Profile ID for the male partner")
+    female_profile_id: str = Field(..., description="Profile ID for the female partner")
+    # Legacy aliases (kept for backward compatibility)
+    profile1_id: Optional[str] = Field(None, description="Alias for male_profile_id (deprecated)")
+    profile2_id: Optional[str] = Field(None, description="Alias for female_profile_id (deprecated)")
 
 
 class CompatibilityResponse(BaseModel):
-    """Compatibility result."""
+    """Kundali compatibility result."""
     compatibility_score: int
     element_match: str
     complementary_powers: bool
     combined_title: str
     synergy: str
+    # Kundali Ashtakuta results
+    kuta_score: Optional[int] = None
+    raw_points: Optional[int] = None
+    score_summary: Optional[str] = None
+    heart_icon: Optional[str] = None
+    factors: Optional[list] = None
 
 
 class LocationResponse(BaseModel):
@@ -568,27 +577,57 @@ async def get_user_profiles(user_id: str, limit: int = 10):
 @app.post("/api/v1/profile/compatibility", response_model=CompatibilityResponse, tags=["Psychic Profile"])
 async def check_compatibility(request: CompatibilityRequest):
     """
-    Check psychic compatibility between two profiles.
-    
-    Returns compatibility score and synergy analysis.
+    Check Kundali (Ashtakuta) compatibility between two birth profiles.
+
+    Scores all 8 classic Kutas (max 36 points) and evaluates 7 additional
+    qualitative factors including Rajju, Vedha, Kuja Dosha, and Bad Constellations.
+    Returns a 0–100 percentage score rounded to the nearest 5.
     """
-    profile1 = await get_profile_by_id(request.profile1_id)
-    profile2 = await get_profile_by_id(request.profile2_id)
-    
-    if not profile1 or not profile2:
+    from logic.kundali_matching import get_kundali_matching
+
+    male_id   = request.male_profile_id   or request.profile1_id
+    female_id = request.female_profile_id or request.profile2_id
+
+    if not male_id or not female_id:
+        raise HTTPException(status_code=400, detail="Both male_profile_id and female_profile_id are required")
+
+    male_profile   = await get_profile_by_id(male_id)
+    female_profile = await get_profile_by_id(female_id)
+
+    if not male_profile or not female_profile:
         raise HTTPException(status_code=404, detail="One or both profiles not found")
-    
-    # Convert back to internal format for compatibility check
-    # This is a simplified version - you'd reconstruct the full profile
-    result = {
-        'compatibility_score': 75,  # Placeholder - implement full logic
-        'element_match': f"{profile1['channel']['element']} + {profile2['channel']['element']}",
-        'complementary_powers': False,
-        'combined_title': f"{profile1['title']} & {profile2['title']}",
-        'synergy': 'High'
-    }
-    
-    return CompatibilityResponse(**result)
+
+    def _profile_to_astrotime(profile: dict) -> AstroTime:
+        bd = profile.get("birth_data", {})
+        dt = _parse_local_datetime(
+            bd["date"], bd["time"], bd.get("timezone", "UTC")
+        )
+        return AstroTime(dt=dt, lat=bd["latitude"], lon=bd["longitude"])
+
+    try:
+        male_time   = _profile_to_astrotime(male_profile)
+        female_time = _profile_to_astrotime(female_profile)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(status_code=422, detail=f"Profile missing required birth data: {e}")
+
+    try:
+        match = get_kundali_matching(male_time, female_time)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating Kundali match: {e}")
+
+    summary = match["summary"]
+    return CompatibilityResponse(
+        compatibility_score=match["kuta_score"],
+        element_match=f"{male_profile.get('channel', {}).get('element', '')} + {female_profile.get('channel', {}).get('element', '')}",
+        complementary_powers=match["kuta_score"] >= 60,
+        combined_title=f"{male_profile.get('title', '')} & {female_profile.get('title', '')}",
+        synergy=summary["score_summary"],
+        kuta_score=match["kuta_score"],
+        raw_points=match["raw_points"],
+        score_summary=summary["score_summary"],
+        heart_icon=summary["heart_icon"],
+        factors=match["factors"],
+    )
 
 
 @app.post("/api/v1/profile/complete", tags=["Complete Profile"])
