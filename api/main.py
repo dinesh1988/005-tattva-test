@@ -57,6 +57,7 @@ from logic.gochara import get_gochara_predictions, get_gochara_summary, get_goch
 from logic.planet_in_house import get_all_planet_in_house_interpretations
 from logic.planet_in_sign import get_all_planet_in_sign_interpretations
 from logic.house_lord_in_house import get_all_house_lord_in_house_interpretations
+from logic.rising_sign import get_rising_sign_interpretation
 
 # Database imports
 from api.database import (
@@ -1728,6 +1729,48 @@ async def get_house_lord_in_house_endpoint(request: PlanetInHouseRequest):
             "timezone": b_tz,
         },
         "house_lord_in_house": interpretations,
+    }
+
+
+@app.post("/api/v1/chart/rising-sign", tags=["Natal Chart"])
+async def get_rising_sign_endpoint(request: PlanetInHouseRequest):
+    """Rising Sign (Lagna / Ascendant) interpretation.
+
+    Returns the Vedic natal interpretation for the rising sign (Lagna) covering
+    mental tendencies, physical appearance, and general life tendencies.
+    Sourced from HoroscopeDataListStatic.cs (EventTag.RisingSign, EventTag.Personal).
+    """
+    # ── Birth location ───────────────────────────────────────────────────────
+    if request.birth_latitude is not None and request.birth_longitude is not None:
+        b_lat = request.birth_latitude
+        b_lon = request.birth_longitude
+        b_tz = request.birth_timezone or "UTC"
+    elif request.birth_place:
+        loc = get_location(request.birth_place)
+        if not loc:
+            raise HTTPException(status_code=400, detail=f"Could not find birth place '{request.birth_place}'")
+        b_lat = loc['latitude']
+        b_lon = loc['longitude']
+        b_tz = request.birth_timezone or loc['timezone']
+    else:
+        raise HTTPException(status_code=400, detail="Provide birth_place or birth_latitude/birth_longitude")
+
+    birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, b_tz)
+    birth_astro_time = AstroTime(dt=birth_dt, lat=b_lat, lon=b_lon)
+
+    # ── Compute interpretation ───────────────────────────────────────────────
+    rising_sign = get_rising_sign_interpretation(birth_astro_time)
+
+    return {
+        "birth": {
+            "date": request.birth_date,
+            "time": request.birth_time,
+            "place": request.birth_place,
+            "latitude": b_lat,
+            "longitude": b_lon,
+            "timezone": b_tz,
+        },
+        "rising_sign": rising_sign,
     }
 
 
