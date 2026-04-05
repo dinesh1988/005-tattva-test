@@ -53,6 +53,7 @@ from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_p
 from logic.functional_nature import get_functional_nature, get_functional_nature_categorized
 from logic.shadbala import get_shadbala_summary, get_shadbala_ratios
 from logic.vedha import calculate_vedha_status
+from logic.gochara import get_gochara_predictions, get_gochara_summary, get_gochara_prediction
 
 # Database imports
 from api.database import (
@@ -285,6 +286,30 @@ class GocharaPanchangRequest(BaseModel):
         description="Natal nakshatra name for Tara Bala baseline",
         example="Purva Bhadrapada",
     )
+
+
+class GocharaPredictionRequest(BaseModel):
+    """Request for personal Gochara (transit) predictions.
+
+    Provide birth data so the natal Moon sign can be determined, then
+    specify the transit date/time and location for current planet positions.
+    """
+
+    # Birth data
+    birth_date: str = Field(..., description="Birth date YYYY-MM-DD", example="1988-06-07")
+    birth_time: str = Field(..., description="Birth time HH:MM[:SS]", example="20:40")
+    birth_place: Optional[str] = Field(None, description="Birth city name", example="Chennai")
+    birth_latitude: Optional[float] = Field(None, description="Birth latitude override")
+    birth_longitude: Optional[float] = Field(None, description="Birth longitude override")
+    birth_timezone: Optional[str] = Field(None, description="Birth timezone (IANA)", example="Asia/Kolkata")
+
+    # Transit date/time + location (defaults to now)
+    transit_place: Optional[str] = Field(None, description="Transit city name (defaults to birth place)")
+    transit_latitude: Optional[float] = Field(None, description="Transit latitude override")
+    transit_longitude: Optional[float] = Field(None, description="Transit longitude override")
+    transit_timezone: Optional[str] = Field(None, description="Transit timezone (IANA)")
+    transit_date: Optional[str] = Field(None, description="Transit date YYYY-MM-DD (defaults to today)")
+    transit_time: Optional[str] = Field(None, description="Transit time HH:MM[:SS] (defaults to now)")
 
 
 class DailyFiveStepRequest(BaseModel):
@@ -1444,6 +1469,105 @@ async def get_gochara_panchang(request: GocharaPanchangRequest):
             "result": {"tara_name": tara_name, "tara_number": tara_num, "quality": tara_quality},
             "table": tara_table,
         },
+    }
+
+
+
+@app.post("/api/v1/prediction/gochara", tags=["Daily Prediction"])
+async def get_gochara_predictions_endpoint(request: GocharaPredictionRequest):
+    """Personal Gochara (transit) predictions based on natal Moon sign.
+
+    For each of the 9 planets (Sun, Moon, Mars, Mercury, Jupiter, Venus,
+    Saturn, Rahu, Ketu) this endpoint returns:
+    - The gochara house (1–12, counted from natal Moon sign)
+    - The overall nature (Good / Bad / Neutral)
+    - Per life-area natures: Mind, Studies, Family, Money, Love, Body
+    - Full Vedic interpretation text
+
+    Also returns an aggregate summary with good/bad counts and net score.
+    """
+    import pytz
+
+    # ── Birth location ───────────────────────────────────────────────────────
+    if request.birth_latitude is not None and request.birth_longitude is not None:
+        b_lat = request.birth_latitude
+        b_lon = request.birth_longitude
+        b_tz = request.birth_timezone or "UTC"
+    elif request.birth_place:
+        loc = get_location(request.birth_place)
+        if not loc:
+            raise HTTPException(status_code=400, detail=f"Could not find birth place '{request.birth_place}'")
+        b_lat = loc['latitude']
+        b_lon = loc['longitude']
+        b_tz = request.birth_timezone or loc['timezone']
+    else:
+        raise HTTPException(status_code=400, detail="Provide birth_place or birth_latitude/birth_longitude")
+
+    birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, b_tz)
+    birth_astro_time = AstroTime(dt=birth_dt, lat=b_lat, lon=b_lon)
+
+    # ── Transit location ─────────────────────────────────────────────────────
+    if request.transit_latitude is not None and request.transit_longitude is not None:
+        t_lat = request.transit_latitude
+        t_lon = request.transit_longitude
+        t_tz = request.transit_timezone or "UTC"
+        transit_place_name = "(custom coordinates)"
+    elif request.transit_place:
+        loc = get_location(request.transit_place)
+        if not loc:
+            raise HTTPException(status_code=400, detail=f"Could not find transit place '{request.transit_place}'")
+        t_lat = loc['latitude']
+        t_lon = loc['longitude']
+        t_tz = request.transit_timezone or loc['timezone']
+        transit_place_name = loc.get('name') or request.transit_place
+    else:
+        # Default to birth location
+        t_lat, t_lon, t_tz = b_lat, b_lon, b_tz
+        transit_place_name = request.birth_place or "(birth location)"
+
+    try:
+        t_pytz = pytz.timezone(t_tz)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid transit timezone '{t_tz}': {e}")
+
+    now_local = datetime.now(t_pytz)
+    t_date = request.transit_date or now_local.strftime("%Y-%m-%d")
+    t_time = request.transit_time or now_local.strftime("%H:%M:%S")
+    transit_dt = _parse_local_datetime(t_date, t_time, t_tz)
+    transit_astro_time = AstroTime(dt=transit_dt, lat=t_lat, lon=t_lon)
+
+    # ── Natal Moon sign ──────────────────────────────────────────────────────
+    from logic.house_queries import get_planet_sign_num as _sign_num
+    birth_moon_sign_num = _sign_num(Planet.Moon, birth_astro_time)
+    birth_moon_sign_name = SIGNS[birth_moon_sign_num - 1]
+
+    # ── Compute gochara predictions ──────────────────────────────────────────
+    predictions = get_gochara_predictions(birth_astro_time, transit_astro_time)
+    summary = get_gochara_summary(birth_astro_time, transit_astro_time)
+
+    return {
+        "birth": {
+            "date": request.birth_date,
+            "time": request.birth_time,
+            "place": request.birth_place,
+            "latitude": b_lat,
+            "longitude": b_lon,
+            "timezone": b_tz,
+        },
+        "transit": {
+            "date": t_date,
+            "time": t_time,
+            "place": transit_place_name,
+            "latitude": t_lat,
+            "longitude": t_lon,
+            "timezone": t_tz,
+        },
+        "natal_moon": {
+            "sign_number": birth_moon_sign_num,
+            "sign_name": birth_moon_sign_name,
+        },
+        "summary": summary,
+        "predictions": predictions,
     }
 
 
