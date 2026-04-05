@@ -2337,6 +2337,7 @@ from logic.muhurtha import (
     get_chandrabala,
     get_panchaka,
     get_ghataka_chakra,
+    get_all_electional_events,
 )
 from logic.nakshatra import get_nakshatra
 from logic.panchang import get_tithi
@@ -2596,6 +2597,53 @@ async def api_ghataka(
         nak_name,
         lagna_sign_num,
     )
+
+
+# ------------------------------------------------------------------
+# 8. Electional Events  GET /api/v1/muhurtha/electional-events
+# ------------------------------------------------------------------
+@app.get("/api/v1/muhurtha/electional-events", tags=["Muhurtha"])
+async def api_electional_events(
+    dt: str,
+    lat: float,
+    lon: float,
+    birth_nakshatra_num: int = None,
+):
+    """
+    Evaluates all individual electional (muhurtha) events for the given moment.
+
+    Returns a list of ~40 named events — yogas, doshas, karana states, directional
+    travel warnings, personal muhurtha indicators (hair/nail cutting, injections,
+    Ekadashi), commerce, agriculture, and building auspiciousness.
+
+    When `birth_nakshatra_num` is supplied (1–27), two additional Tarabala
+    events (`TarabalaFavorable` / `TarabalaUnfavorable`) are included.
+
+    Each event entry:
+    ```json
+    {
+        "name":       "SiddhaYoga",
+        "category":   "yoga",
+        "occurring":  true,
+        "description": "Siddha Yoga is occurring …"
+    }
+    ```
+
+    - **dt**: ISO 8601 datetime string (e.g. `1988-06-07T20:40:00+05:30`)
+    - **lat / lon**: Geographic coordinates
+    - **birth_nakshatra_num**: (optional) Janma Nakshatra number 1–27 for Tarabala
+    """
+    time = _make_astro_time(dt, lat, lon)
+    events = get_all_electional_events(time, birth_nakshatra_num)
+    return {
+        "dt": dt,
+        "lat": lat,
+        "lon": lon,
+        "birth_nakshatra_num": birth_nakshatra_num,
+        "events": events,
+        "total": len(events),
+        "occurring_count": sum(1 for e in events if e["occurring"]),
+    }
 
 
 # =============================================================================

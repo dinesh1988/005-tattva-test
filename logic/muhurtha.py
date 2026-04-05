@@ -8,10 +8,16 @@ based on Tithi, Nakshatra, Weekday, and Hora.
 Reference: Library/Logic/Calculate/Muhurtha.cs (10,853 lines in VedAstro C#)
 """
 
+import math
 from datetime import datetime, time as dt_time, timedelta
 from typing import Dict, List, Tuple
 from logic.panchang import get_tithi, get_yoga, TITHIS, YOGA_DATA
-from logic.nakshatra import NAKSHATRAS
+from logic.nakshatra import NAKSHATRAS, TARAS, get_nakshatra
+from logic.consts import Planet
+from logic.house_queries import get_planet_house, get_planets_in_house, get_lagna_sign_num
+from logic.calculate import get_planet_longitude
+from logic.time import AstroTime
+from logic.rasi import get_rasi
 
 # ==================== TITHI CLASSIFICATIONS ====================
 
@@ -727,6 +733,735 @@ def get_ghataka_chakra(
             "ghataka_lagna": gh_lagna,
         },
     }
+
+
+# =============================================================================
+# ELECTIONAL ASTROLOGY — Individual Event Calculators
+# =============================================================================
+# These functions port specific calculator methods from Muhurtha.cs.
+# They check individual auspicious/inauspicious conditions for muhurtha selection.
+#
+# Python weekday convention used throughout:
+#   Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+
+
+# =============================================================================
+# KARANA CALCULATION
+# =============================================================================
+# A tithi has two karanas (half-tithis). 11 karanas total: 4 fixed + 7 movable.
+# Ported from Core.cs Karana() method.
+
+_KARANA_TABLE_EC: Dict[int, Tuple[str, str]] = {
+    1:  ("Kimstughna", "Bava"),
+    2:  ("Balava",     "Kaulava"),
+    3:  ("Taitila",    "Garaja"),
+    4:  ("Vanija",     "Vishti"),
+    5:  ("Bava",       "Balava"),
+    6:  ("Kaulava",    "Taitila"),
+    7:  ("Garaja",     "Vanija"),
+    8:  ("Vishti",     "Bava"),
+    9:  ("Balava",     "Kaulava"),
+    10: ("Taitila",    "Garaja"),
+    11: ("Vanija",     "Vishti"),
+    12: ("Bava",       "Balava"),
+    13: ("Kaulava",    "Taitila"),
+    14: ("Garaja",     "Vanija"),
+    15: ("Vishti",     "Bava"),
+    16: ("Balava",     "Kaulava"),
+    17: ("Taitila",    "Garaja"),
+    18: ("Vanija",     "Vishti"),
+    19: ("Bava",       "Balava"),
+    20: ("Kaulava",    "Taitila"),
+    21: ("Garaja",     "Vanija"),
+    22: ("Vishti",     "Bava"),
+    23: ("Balava",     "Kaulava"),
+    24: ("Taitila",    "Garaja"),
+    25: ("Vanija",     "Vishti"),
+    26: ("Bava",       "Balava"),
+    27: ("Kaulava",    "Taitila"),
+    28: ("Garaja",     "Vanija"),
+    29: ("Vishti",     "Shakuni"),
+    30: ("Chatushpada", "Nagava"),
+}
+
+
+def get_karana(sun_long: float, moon_long: float) -> str:
+    """
+    Returns the Karana name for the given sun/moon longitudes.
+
+    A karana is a half-tithi. Ported from Core.cs Karana().
+    """
+    moon_adj = moon_long if moon_long > sun_long else moon_long + 360.0
+    raw = (moon_adj - sun_long) / 12.0
+    tithi_idx = max(1, min(30, math.ceil(raw)))
+    frac = raw - math.floor(raw)
+    half = 0 if frac <= 0.5 else 1
+    return _KARANA_TABLE_EC[tithi_idx][half]
+
+
+# =============================================================================
+# TARABALA — Extended with Cycle (Strong / Middling / Weak)
+# =============================================================================
+# Each of the 9 taras repeats 3 times across the 27 nakshatras.
+# Cycle 1 (distance 1-9) = Strong, Cycle 2 (10-18) = Middling, Cycle 3 (19-27) = Weak.
+# Ported from Muhurtha.cs TarabalaJanmaStrong … TarabalaParamaMitraWeak.
+
+def get_tarabala_with_cycle(birth_nak_num: int, transit_nak_num: int) -> Tuple[str, int, int]:
+    """
+    Returns (tara_name, tara_num 1-9, cycle 1-3).
+
+    cycle 1 = Strong (distance 1-9), cycle 2 = Middling (10-18), cycle 3 = Weak (19-27).
+    """
+    distance = transit_nak_num - birth_nak_num + 1
+    if distance <= 0:
+        distance += 27
+    cycle = (distance - 1) // 9 + 1
+    tara_num = (distance - 1) % 9 + 1
+    tara_name = TARAS[tara_num - 1]
+    return tara_name, tara_num, cycle
+
+
+def _check_tara(birth: int, transit: int, tara: int, cycle: int) -> bool:
+    _, t, c = get_tarabala_with_cycle(birth, transit)
+    return t == tara and c == cycle
+
+
+# Strong (cycle 1)
+def is_tarabala_janma_strong(b: int, t: int) -> bool:        return _check_tara(b, t, 1, 1)
+def is_tarabala_sampat_strong(b: int, t: int) -> bool:       return _check_tara(b, t, 2, 1)
+def is_tarabala_vipat_strong(b: int, t: int) -> bool:        return _check_tara(b, t, 3, 1)
+def is_tarabala_kshema_strong(b: int, t: int) -> bool:       return _check_tara(b, t, 4, 1)
+def is_tarabala_pratyak_strong(b: int, t: int) -> bool:      return _check_tara(b, t, 5, 1)
+def is_tarabala_sadhana_strong(b: int, t: int) -> bool:      return _check_tara(b, t, 6, 1)
+def is_tarabala_naidhana_strong(b: int, t: int) -> bool:     return _check_tara(b, t, 7, 1)
+def is_tarabala_mitra_strong(b: int, t: int) -> bool:        return _check_tara(b, t, 8, 1)
+def is_tarabala_paramam_mitra_strong(b: int, t: int) -> bool: return _check_tara(b, t, 9, 1)
+
+# Middling (cycle 2)
+def is_tarabala_janma_middling(b: int, t: int) -> bool:        return _check_tara(b, t, 1, 2)
+def is_tarabala_sampat_middling(b: int, t: int) -> bool:       return _check_tara(b, t, 2, 2)
+def is_tarabala_vipat_middling(b: int, t: int) -> bool:        return _check_tara(b, t, 3, 2)
+def is_tarabala_kshema_middling(b: int, t: int) -> bool:       return _check_tara(b, t, 4, 2)
+def is_tarabala_pratyak_middling(b: int, t: int) -> bool:      return _check_tara(b, t, 5, 2)
+def is_tarabala_sadhana_middling(b: int, t: int) -> bool:      return _check_tara(b, t, 6, 2)
+def is_tarabala_naidhana_middling(b: int, t: int) -> bool:     return _check_tara(b, t, 7, 2)
+def is_tarabala_mitra_middling(b: int, t: int) -> bool:        return _check_tara(b, t, 8, 2)
+def is_tarabala_paramam_mitra_middling(b: int, t: int) -> bool: return _check_tara(b, t, 9, 2)
+
+# Weak (cycle 3)
+def is_tarabala_janma_weak(b: int, t: int) -> bool:        return _check_tara(b, t, 1, 3)
+def is_tarabala_sampat_weak(b: int, t: int) -> bool:       return _check_tara(b, t, 2, 3)
+def is_tarabala_vipat_weak(b: int, t: int) -> bool:        return _check_tara(b, t, 3, 3)
+def is_tarabala_kshema_weak(b: int, t: int) -> bool:       return _check_tara(b, t, 4, 3)
+def is_tarabala_pratyak_weak(b: int, t: int) -> bool:      return _check_tara(b, t, 5, 3)
+def is_tarabala_sadhana_weak(b: int, t: int) -> bool:      return _check_tara(b, t, 6, 3)
+def is_tarabala_naidhana_weak(b: int, t: int) -> bool:     return _check_tara(b, t, 7, 3)
+def is_tarabala_mitra_weak(b: int, t: int) -> bool:        return _check_tara(b, t, 8, 3)
+def is_tarabala_paramam_mitra_weak(b: int, t: int) -> bool: return _check_tara(b, t, 9, 3)
+
+
+# =============================================================================
+# YOGA EVENTS
+# =============================================================================
+
+# ── AmritaSiddhaYoga ──────────────────────────────────────────────────────────
+# Sun→Hasta, Mon→Shravana, Tue→Ashwini, Wed→Anuradha,
+# Thu→Pushya, Fri→Revati, Sat→Rohini.
+# Ported from Muhurtha.cs IsAmritaSiddhaYogaOccuring().
+
+_AMRITA_SIDDHA_NAK: Dict[int, str] = {
+    0: "Shravana",   # Monday
+    1: "Ashwini",    # Tuesday
+    2: "Anuradha",   # Wednesday
+    3: "Pushya",     # Thursday
+    4: "Revati",     # Friday
+    5: "Rohini",     # Saturday
+    6: "Hasta",      # Sunday
+}
+
+
+def is_amrita_siddha_yoga(python_weekday: int, nakshatra: str) -> bool:
+    """True when Moon nakshatra matches the AmritaSiddha fixed assignment for the weekday."""
+    return _AMRITA_SIDDHA_NAK.get(python_weekday, "") == nakshatra
+
+
+# ── BadNithyaYoga ────────────────────────────────────────────────────────────
+# Ported from Muhurtha.cs IsBadNithyaYogaOccuring().
+
+_BAD_NITHYA_YOGAS = frozenset({"Atiganda", "Shula", "Ganda", "Vyatipata", "Vaidhriti"})
+
+
+def is_bad_nithya_yoga(yoga_name: str) -> bool:
+    """True when the current Nithya Yoga is one of the five inauspicious yogas."""
+    return yoga_name in _BAD_NITHYA_YOGAS
+
+
+# ── UgraYoga ─────────────────────────────────────────────────────────────────
+# Ported from Muhurtha.cs IsUgraYogaOccuring().
+
+_UGRA_YOGA_TITHIS = frozenset({3, 4, 5, 6, 7, 9, 10, 12, 13})
+_UGRA_YOGA_NAKSHATRAS = frozenset({
+    "Rohini", "Uttara Phalguni", "Shravana", "Mrigashira",
+    "Revati", "Krittika", "Pushya", "Anuradha", "Magha",
+})
+
+
+def is_ugra_yoga(tithi_num: int, nakshatra: str) -> bool:
+    """True when tithi and nakshatra combine to form the inauspicious Ugra Yoga."""
+    norm = (tithi_num - 1) % 15 + 1
+    return norm in _UGRA_YOGA_TITHIS and nakshatra in _UGRA_YOGA_NAKSHATRAS
+
+
+# ── SiddhaYoga ───────────────────────────────────────────────────────────────
+# Complex per-weekday tithi+nakshatra conditions for the auspicious Siddha Yoga.
+# Ported from Muhurtha.cs IsSiddhaYogaOccuring() and its inner week-day helpers.
+#
+# Python weekday: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+
+_SY_SUN_TITHIS = frozenset({1, 4, 6, 7, 12})
+_SY_SUN_NAKS   = frozenset({"Pushya", "Hasta", "Uttara Phalguni", "Uttara Ashadha", "Mula", "Shravana"})
+
+_SY_MON_TITHIS = frozenset({2, 7, 12})
+_SY_MON_NAKS   = frozenset({
+    "Rohini", "Mrigashira", "Punarvasu", "Chitra",
+    "Shravana", "Shatabhisha", "Dhanishta", "Purva Bhadrapada",
+})
+
+_SY_TUE_NAKS = frozenset({
+    "Ashwini", "Mrigashira", "Chitra", "Anuradha",
+    "Mula", "Uttara Phalguni", "Dhanishta", "Purva Bhadrapada",
+})
+
+_SY_WED_NAKS = frozenset({
+    "Rohini", "Mrigashira", "Ardra", "Uttara Phalguni",
+    "Uttara Ashadha", "Anuradha",
+})
+
+_SY_THU_TITHIS = frozenset({4, 5, 7, 9, 13, 14})
+_SY_THU_NAKS   = frozenset({
+    "Magha", "Pushya", "Punarvasu", "Swati",
+    "Purva Ashadha", "Purva Bhadrapada", "Revati", "Ashwini",
+})
+
+_SY_FRI_NAKS = frozenset({
+    "Ashwini", "Bharani", "Ardra", "Uttara Phalguni",
+    "Chitra", "Swati", "Purva Ashadha", "Revati",
+})
+
+_SY_SAT_NAKS = frozenset({
+    "Swati", "Rohini", "Vishakha", "Anuradha",
+    "Dhanishta", "Shatabhisha",
+})
+
+
+def is_siddha_yoga(tithi_num: int, python_weekday: int, nakshatra: str) -> bool:
+    """
+    Returns True when Tithi + Weekday + Nakshatra produce Siddha Yoga.
+    Ported from Muhurtha.cs IsSiddhaYogaOccuring().
+    """
+    grp = _tithi_group_of(tithi_num)
+    norm = (tithi_num - 1) % 15 + 1
+
+    if python_weekday == 6:   # Sunday
+        return norm in _SY_SUN_TITHIS and nakshatra in _SY_SUN_NAKS
+
+    if python_weekday == 0:   # Monday
+        return norm in _SY_MON_TITHIS and nakshatra in _SY_MON_NAKS
+
+    if python_weekday == 1:   # Tuesday
+        return nakshatra in _SY_TUE_NAKS or grp == "Jaya"
+
+    if python_weekday == 2:   # Wednesday
+        if (grp in {"Bhadra", "Jaya"}) and nakshatra in _SY_WED_NAKS:
+            return True
+        return grp == "Bhadra"
+
+    if python_weekday == 3:   # Thursday
+        return (norm in _SY_THU_TITHIS and nakshatra in _SY_THU_NAKS) or grp == "Purna"
+
+    if python_weekday == 4:   # Friday
+        if (grp in {"Bhadra", "Nanda"}) and nakshatra in _SY_FRI_NAKS:
+            return True
+        return grp == "Nanda"
+
+    if python_weekday == 5:   # Saturday
+        if (grp in {"Bhadra", "Rikta"}) and nakshatra in _SY_SAT_NAKS:
+            return True
+        return grp == "Rikta"
+
+    return False
+
+
+# =============================================================================
+# DOSHA EVENTS  (require AstroTime for live planet positions)
+# =============================================================================
+
+_MALEFIC_PLANETS = [Planet.Sun, Planet.Mars, Planet.Saturn, Planet.Rahu, Planet.Ketu]
+
+
+def is_bhrigu_shatka(time: AstroTime) -> bool:
+    """True when Venus is in House 6 — Bhrigu Shatka Dosha.
+    Ported from Muhurtha.cs IsBhriguShatkaOccuring()."""
+    return get_planet_house(Planet.Venus, time) == 6
+
+
+def is_kujasthama(time: AstroTime) -> bool:
+    """True when Mars is in House 8 — Kujasthama Dosha.
+    Ported from Muhurtha.cs IsKujasthamaOccuring()."""
+    return get_planet_house(Planet.Mars, time) == 8
+
+
+def is_karthari_dosha(time: AstroTime) -> bool:
+    """True when malefic planets occupy both House 2 AND House 12 (scissors formation).
+    Ported from Muhurtha.cs IsKarthariDoshaOccuring()."""
+    h2_planets  = get_planets_in_house(2, time)
+    h12_planets = get_planets_in_house(12, time)
+    return (any(p in _MALEFIC_PLANETS for p in h2_planets) and
+            any(p in _MALEFIC_PLANETS for p in h12_planets))
+
+
+def is_shashtashta_riphagata_chandra(time: AstroTime) -> bool:
+    """True when Moon is in House 6, 8, or 12.
+    Ported from Muhurtha.cs IsShashtashtaRiphagataChandra()."""
+    return get_planet_house(Planet.Moon, time) in {6, 8, 12}
+
+
+def is_sagraha_chandra_dosha(time: AstroTime) -> bool:
+    """True when Moon shares its house with any other planet — Sagraha Chandra Dosha.
+    Ported from Muhurtha.cs IsSagrahaChandra()."""
+    moon_house = get_planet_house(Planet.Moon, time)
+    others = [Planet.Sun, Planet.Mars, Planet.Mercury, Planet.Jupiter,
+              Planet.Venus, Planet.Saturn, Planet.Rahu, Planet.Ketu]
+    return any(get_planet_house(p, time) == moon_house for p in others)
+
+
+# =============================================================================
+# KARANA EVENTS
+# =============================================================================
+# Ported from Muhurtha.cs IsTaitulaKarana, IsBavaKarana, IsVishtiKaranaOccuring, etc.
+
+def is_taitila_karana(sun_long: float, moon_long: float) -> bool:
+    """True when current Karana is Taitila — auspicious for marriage."""
+    return get_karana(sun_long, moon_long) == "Taitila"
+
+
+def is_bava_karana(sun_long: float, moon_long: float) -> bool:
+    """True when current Karana is Bava — auspicious for stable/permanent work."""
+    return get_karana(sun_long, moon_long) == "Bava"
+
+
+def is_sakuna_karana(sun_long: float, moon_long: float) -> bool:
+    """True when current Karana is Shakuni — auspicious for mantras."""
+    return get_karana(sun_long, moon_long) == "Shakuni"
+
+
+def is_bhadra_karana(sun_long: float, moon_long: float) -> bool:
+    """True when current Karana is Vishti (Bhadra) — inauspicious, avoid important work."""
+    return get_karana(sun_long, moon_long) == "Vishti"
+
+
+# =============================================================================
+# DIRECTIONAL TRAVEL — Inauspicious Weekdays per Direction
+# =============================================================================
+# Ported from Muhurtha.cs IsBadWeekdayForTravelEast / South / West / North.
+# Python weekday: Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+
+def is_bad_weekday_for_travel_east(python_weekday: int) -> bool:
+    """Saturday or Monday are inauspicious for eastward travel."""
+    return python_weekday in {0, 5}
+
+
+def is_bad_weekday_for_travel_south(python_weekday: int) -> bool:
+    """Thursday is inauspicious for southward travel."""
+    return python_weekday == 3
+
+
+def is_bad_weekday_for_travel_west(python_weekday: int) -> bool:
+    """Sunday or Friday are inauspicious for westward travel."""
+    return python_weekday in {4, 6}
+
+
+def is_bad_weekday_for_travel_north(python_weekday: int) -> bool:
+    """Wednesday or Tuesday are inauspicious for northward travel."""
+    return python_weekday in {1, 2}
+
+
+# =============================================================================
+# PERSONAL ELECTIONAL EVENTS
+# =============================================================================
+
+def is_ekadashi(tithi_num: int) -> bool:
+    """True when the current tithi is Ekadashi (11th lunar day)."""
+    return (tithi_num - 1) % 15 + 1 == 11
+
+
+# ── Good Hair-Cutting ────────────────────────────────────────────────────────
+# Ported from Muhurtha.cs IsGoodHairCuttingOccuring().
+
+_HAIR_CUT_GOOD_NAKS = frozenset({
+    "Pushya", "Punarvasu", "Revati", "Hasta", "Shravana", "Dhanishta",
+    "Mrigashira", "Ashwini", "Chitra", "Jyeshtha", "Shatabhisha", "Swati",
+})
+_HAIR_CUT_BAD_TITHIS = frozenset({4, 6, 14, 1, 15})
+
+
+def is_good_hair_cutting(tithi_num: int, nakshatra: str) -> bool:
+    """True when the moment is suitable for hair-cutting (nakshatra + tithi check)."""
+    norm = (tithi_num - 1) % 15 + 1
+    return nakshatra in _HAIR_CUT_GOOD_NAKS and norm not in _HAIR_CUT_BAD_TITHIS
+
+
+# ── Good Nail-Cutting ────────────────────────────────────────────────────────
+# Ported from Muhurtha.cs IsGoodNailCuttingOccuring().
+
+_NAIL_CUT_BAD_TITHIS   = frozenset({8, 9, 14, 1, 15})
+_NAIL_CUT_BAD_WEEKDAYS = frozenset({4, 5})   # Friday, Saturday
+
+
+def is_good_nail_cutting(tithi_num: int, python_weekday: int) -> bool:
+    """True when the moment is suitable for nail-cutting (weekday + tithi check)."""
+    norm = (tithi_num - 1) % 15 + 1
+    return python_weekday not in _NAIL_CUT_BAD_WEEKDAYS and norm not in _NAIL_CUT_BAD_TITHIS
+
+
+# ── Good for Taking Injections / Minor Procedures ────────────────────────────
+# Ported from Muhurtha.cs IsGoodTakingInjectionsOccuring().
+# Conditions: Saturday or Monday; lagna in Aries/Taurus/Cancer/Virgo;
+#             8th house empty; Mercury not in Pisces (debilitated).
+
+_INJECTION_WEEKDAYS = frozenset({0, 5})   # Monday, Saturday
+_INJECTION_LAGNA    = frozenset({1, 2, 4, 6})  # Aries, Taurus, Cancer, Virgo
+
+
+def is_good_taking_injections(time: AstroTime) -> bool:
+    """True when the moment is auspicious for receiving injections or minor procedures."""
+    if time.datetime.weekday() not in _INJECTION_WEEKDAYS:
+        return False
+    if get_lagna_sign_num(time) not in _INJECTION_LAGNA:
+        return False
+    if get_planets_in_house(8, time):
+        return False
+    # Mercury debilitated in Pisces (sign 12)
+    merc_long = get_planet_longitude(Planet.Mercury, time)
+    _, merc_sign = get_rasi(merc_long)
+    if merc_sign == 12:
+        return False
+    return True
+
+
+# =============================================================================
+# COMMERCE EVENTS
+# =============================================================================
+# Ported from simple Muhurtha.cs commerce checks (weekday/sign based).
+
+def is_good_weekday_for_selling(python_weekday: int) -> bool:
+    """True when weekday is favorable for selling (Monday, Wednesday, Thursday)."""
+    return python_weekday in {0, 2, 3}
+
+
+def is_good_moon_sign_for_selling(moon_sign_num: int) -> bool:
+    """True when Moon is in Taurus (2), Cancer (4), or Pisces (12) — auspicious for sales."""
+    return moon_sign_num in {2, 4, 12}
+
+
+def is_bad_for_buying_tools_utensils_jewellery(nakshatra: str, tithi_num: int) -> bool:
+    """True when nakshatra + tithi make buying tools/utensils/jewellery inauspicious."""
+    bad_naks   = {"Ashlesha", "Mula", "Jyeshtha"}
+    bad_tithis = {8, 9, 1}
+    norm = (tithi_num - 1) % 15 + 1
+    return nakshatra in bad_naks and norm in bad_tithis
+
+
+# =============================================================================
+# AGRICULTURE EVENTS
+# =============================================================================
+
+# Auspicious nakshatras for sowing: fixed, movable, soft, and light types.
+_SOWING_GOOD_NAKS = frozenset({
+    "Rohini", "Uttara Phalguni", "Uttara Ashadha", "Uttara Bhadrapada",   # fixed
+    "Punarvasu", "Swati", "Shravana", "Dhanishta", "Shatabhisha",          # movable
+    "Mrigashira", "Chitra", "Anuradha", "Revati",                          # soft
+    "Ashwini", "Pushya", "Hasta",                                          # light
+})
+_SOWING_BAD_TITHIS = frozenset({4, 8, 9, 14})  # Rikta + Ashtami
+
+
+def is_good_for_sowing(nakshatra: str) -> bool:
+    """True when the current nakshatra is auspicious for sowing seeds."""
+    return nakshatra in _SOWING_GOOD_NAKS
+
+
+def is_bad_for_starting_agriculture(tithi_num: int) -> bool:
+    """True when the tithi is inauspicious for starting agricultural work."""
+    norm = (tithi_num - 1) % 15 + 1
+    return norm in _SOWING_BAD_TITHIS or tithi_num == 30  # also Amavasya
+
+
+# =============================================================================
+# BUILDING / CONSTRUCTION EVENTS
+# =============================================================================
+
+_BUILD_GOOD_TITHIS   = frozenset({2, 3, 5, 7, 10, 11, 12, 13})
+_BUILD_GOOD_WEEKDAYS = frozenset({0, 2, 3, 4})   # Mon, Wed, Thu, Fri
+_BUILD_BAD_WEEKDAYS  = frozenset({1, 5})          # Tue, Sat
+_BUILD_BAD_TITHIS    = frozenset({14, 15, 30})    # Chaturdashi, Purnima, Amavasya
+
+
+def is_good_lunar_day_for_building(tithi_num: int) -> bool:
+    """True when the tithi is auspicious for beginning construction."""
+    norm = (tithi_num - 1) % 15 + 1
+    return norm in _BUILD_GOOD_TITHIS
+
+
+def is_good_weekday_for_building(python_weekday: int) -> bool:
+    """True when the weekday is favorable for construction (Mon/Wed/Thu/Fri)."""
+    return python_weekday in _BUILD_GOOD_WEEKDAYS
+
+
+def is_bad_weekday_for_building(python_weekday: int) -> bool:
+    """True when the weekday is unfavorable for construction (Tuesday or Saturday)."""
+    return python_weekday in _BUILD_BAD_WEEKDAYS
+
+
+def is_bad_lunar_phase_for_building(tithi_num: int) -> bool:
+    """True when the tithi is inauspicious for construction (14th, 15th, or Amavasya)."""
+    return tithi_num in _BUILD_BAD_TITHIS
+
+
+# =============================================================================
+# MASTER FUNCTION — Get All Electional Events
+# =============================================================================
+
+_WD_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def get_all_electional_events(
+    time: AstroTime,
+    birth_nakshatra_num: int = None,
+) -> List[Dict]:
+    """
+    Evaluates all individual electional (muhurtha) events for the given moment.
+
+    Returns a list of dicts with keys:
+        name        : str  — event identifier (matches C# EventName enum)
+        category    : str  — "yoga" | "dosha" | "karana" | "travel" | "personal"
+                             | "commerce" | "agriculture" | "building" | "tarabala"
+        occurring   : bool — whether the condition is active right now
+        description : str  — human-readable explanation
+
+    Args:
+        time               : AstroTime for the moment to evaluate.
+        birth_nakshatra_num: Janma Nakshatra number 1-27. Required for Tarabala
+                             events; omit (or pass None) to skip them.
+
+    Ported from ~194 individual EventCalculator methods in Muhurtha.cs.
+    """
+    # ── Pre-compute panchang values ───────────────────────────────────────────
+    sun_long  = get_planet_longitude(Planet.Sun,  time)
+    moon_long = get_planet_longitude(Planet.Moon, time)
+
+    tithi_name, tithi_num, _ = get_tithi(sun_long, moon_long)
+    yoga_name, _             = get_yoga(sun_long, moon_long)
+
+    nak_name, nak_num, _, _  = get_nakshatra(moon_long)
+    _, moon_sign_num          = get_rasi(moon_long)
+
+    python_weekday = time.datetime.weekday()
+    wd = _WD_ABBR[python_weekday]
+
+    karana_name = get_karana(sun_long, moon_long)
+
+    events: List[Dict] = []
+
+    def _add(name: str, category: str, occurring: bool,
+             desc_true: str, desc_false: str = "") -> None:
+        events.append({
+            "name": name,
+            "category": category,
+            "occurring": occurring,
+            "description": desc_true if occurring else (desc_false or f"{name} is not occurring."),
+        })
+
+    # ── Yoga Events ───────────────────────────────────────────────────────────
+    v = is_amrita_siddha_yoga(python_weekday, nak_name)
+    _add("AmritaSiddhaYoga", "yoga", v,
+         f"Amrita Siddha Yoga is occurring — {nak_name} on {wd}. Highly auspicious.",
+         "Amrita Siddha Yoga is not occurring.")
+
+    v = is_siddha_yoga(tithi_num, python_weekday, nak_name)
+    _add("SiddhaYoga", "yoga", v,
+         f"Siddha Yoga is occurring (tithi {tithi_num}, {nak_name}, {wd}). Auspicious for important activities.",
+         "Siddha Yoga is not occurring.")
+
+    v = is_bad_nithya_yoga(yoga_name)
+    _add("BadNithyaYoga", "yoga", v,
+         f"{yoga_name} is an inauspicious Nithya Yoga. Avoid important new starts.",
+         f"{yoga_name} is not an inauspicious Nithya Yoga.")
+
+    v = is_ugra_yoga(tithi_num, nak_name)
+    _add("UgraYoga", "yoga", v,
+         f"Ugra Yoga is occurring (tithi {tithi_num} + {nak_name}). Avoid auspicious activities.",
+         "Ugra Yoga is not occurring.")
+
+    # ── Dosha Events ──────────────────────────────────────────────────────────
+    v = is_bhrigu_shatka(time)
+    _add("BhriguShatka", "dosha", v,
+         "Venus is in House 6 — Bhrigu Shatka Dosha. Unfavourable for financial and relationship matters.",
+         "Bhrigu Shatka is not active (Venus is not in House 6).")
+
+    v = is_kujasthama(time)
+    _add("Kujasthama", "dosha", v,
+         "Mars is in House 8 — Kujasthama Dosha. Unfavourable for marriage and partnerships.",
+         "Kujasthama is not active (Mars is not in House 8).")
+
+    v = is_karthari_dosha(time)
+    _add("KarthariDosha", "dosha", v,
+         "Malefic planets flank both House 2 and House 12 — Karthari Dosha. Avoid important activities.",
+         "Karthari Dosha is not occurring.")
+
+    v = is_shashtashta_riphagata_chandra(time)
+    _add("ShashtashtaRiphagataChandra", "dosha", v,
+         "Moon is in the 6th, 8th, or 12th house. Unfavourable period for emotional and health matters.",
+         "Moon is not in the 6th/8th/12th house — no Shashtashta Riphagata Dosha.")
+
+    v = is_sagraha_chandra_dosha(time)
+    _add("SagrahaChandra", "dosha", v,
+         "Moon shares its house with another planet — Sagraha Chandra Dosha. Use caution.",
+         "Moon is not conjoined with any planet — no Sagraha Chandra Dosha.")
+
+    # ── Karana Events ─────────────────────────────────────────────────────────
+    _add("TaitilaKarana", "karana", karana_name == "Taitila",
+         f"Current Karana is Taitila — auspicious for marriage and social activities.",
+         f"Current Karana is {karana_name} (not Taitila).")
+
+    _add("BavaKarana", "karana", karana_name == "Bava",
+         "Current Karana is Bava — auspicious for stable, permanent undertakings.",
+         f"Current Karana is {karana_name} (not Bava).")
+
+    _add("ShakuniKarana", "karana", karana_name == "Shakuni",
+         "Current Karana is Shakuni — auspicious for mantras and spiritual practices.",
+         f"Current Karana is {karana_name} (not Shakuni).")
+
+    _add("BhadraKarana", "karana", karana_name == "Vishti",
+         "Current Karana is Vishti (Bhadra) — inauspicious, avoid important activities.",
+         f"Current Karana is {karana_name} (not Vishti/Bhadra).")
+
+    # ── Ekadashi ──────────────────────────────────────────────────────────────
+    _add("EkadashiOccuring", "personal", is_ekadashi(tithi_num),
+         f"Today is Ekadashi (11th lunar day). Auspicious for fasting and spiritual practice.",
+         f"Today is not Ekadashi (current tithi: {tithi_name}).")
+
+    # ── Directional Travel ────────────────────────────────────────────────────
+    _add("BadWeekdayForTravelEast",  "travel",
+         is_bad_weekday_for_travel_east(python_weekday),
+         f"{wd} is inauspicious for eastward travel.",
+         f"{wd} is acceptable for eastward travel.")
+
+    _add("BadWeekdayForTravelSouth", "travel",
+         is_bad_weekday_for_travel_south(python_weekday),
+         f"{wd} is inauspicious for southward travel.",
+         f"{wd} is acceptable for southward travel.")
+
+    _add("BadWeekdayForTravelWest",  "travel",
+         is_bad_weekday_for_travel_west(python_weekday),
+         f"{wd} is inauspicious for westward travel.",
+         f"{wd} is acceptable for westward travel.")
+
+    _add("BadWeekdayForTravelNorth", "travel",
+         is_bad_weekday_for_travel_north(python_weekday),
+         f"{wd} is inauspicious for northward travel.",
+         f"{wd} is acceptable for northward travel.")
+
+    # ── Personal Electional ───────────────────────────────────────────────────
+    v = is_good_hair_cutting(tithi_num, nak_name)
+    _add("GoodHairCutting", "personal", v,
+         f"{nak_name} on tithi {tithi_num} is good for hair-cutting.",
+         f"Not an ideal time for hair-cutting ({nak_name}, tithi {tithi_num}).")
+
+    v = is_good_nail_cutting(tithi_num, python_weekday)
+    _add("GoodNailCutting", "personal", v,
+         f"Acceptable time for nail-cutting (tithi {tithi_num}, {wd}).",
+         f"Not ideal for nail-cutting — avoid Friday/Saturday and tithis 8/9/14/1/15.")
+
+    try:
+        v = is_good_taking_injections(time)
+        _add("GoodTakingInjections", "personal", v,
+             "Auspicious for receiving injections or minor medical procedures.",
+             "Not ideal for injections — weekday, lagna, or 8th house conditions not met.")
+    except Exception:
+        pass  # Skip gracefully if lagna calculation is unavailable
+
+    # ── Commerce ──────────────────────────────────────────────────────────────
+    _add("GoodWeekdayForSelling",  "commerce",
+         is_good_weekday_for_selling(python_weekday),
+         f"{wd} is a good day for selling.",
+         f"{wd} is not the most favourable day for selling.")
+
+    _add("GoodMoonSignForSelling", "commerce",
+         is_good_moon_sign_for_selling(moon_sign_num),
+         f"Moon in sign {moon_sign_num} is auspicious for selling (Taurus/Cancer/Pisces favoured).",
+         f"Moon in sign {moon_sign_num} is not particularly favourable for selling.")
+
+    _add("BadForBuyingToolsUtensilsJewellery", "commerce",
+         is_bad_for_buying_tools_utensils_jewellery(nak_name, tithi_num),
+         f"{nak_name} on tithi {tithi_num} is inauspicious for buying tools, utensils, or jewellery.",
+         "No contra-indicator for buying tools/utensils/jewellery at this time.")
+
+    # ── Agriculture ───────────────────────────────────────────────────────────
+    _add("GoodForSowing", "agriculture",
+         is_good_for_sowing(nak_name),
+         f"{nak_name} is a favourable nakshatra for sowing seeds.",
+         f"{nak_name} is not a preferred nakshatra for sowing.")
+
+    _add("BadForStartingAgriculture", "agriculture",
+         is_bad_for_starting_agriculture(tithi_num),
+         f"Tithi {tithi_num} ({tithi_name}) is inauspicious for starting agricultural work.",
+         f"Tithi {tithi_num} ({tithi_name}) is not contra-indicated for agricultural work.")
+
+    # ── Building ──────────────────────────────────────────────────────────────
+    _add("GoodLunarDayForBuilding", "building",
+         is_good_lunar_day_for_building(tithi_num),
+         f"Tithi {tithi_num} is auspicious for starting construction.",
+         f"Tithi {tithi_num} is not among the most favoured for construction.")
+
+    _add("GoodWeekdayForBuilding", "building",
+         is_good_weekday_for_building(python_weekday),
+         f"{wd} is favourable for construction activities.",
+         f"{wd} is not the most favourable weekday for construction.")
+
+    _add("BadWeekdayForBuilding",  "building",
+         is_bad_weekday_for_building(python_weekday),
+         f"{wd} (Tuesday/Saturday) is unfavourable for construction.",
+         f"{wd} is not among the bad weekdays for construction.")
+
+    _add("BadLunarPhaseForBuilding", "building",
+         is_bad_lunar_phase_for_building(tithi_num),
+         f"Tithi {tithi_num} (near full/new moon or Chaturdashi) is unfavourable for construction.",
+         f"Tithi {tithi_num} is not a bad lunar phase for construction.")
+
+    # ── Tarabala (only when birth nakshatra is provided) ─────────────────────
+    if birth_nakshatra_num is not None:
+        tara_name, tara_num, cycle = get_tarabala_with_cycle(birth_nakshatra_num, nak_num)
+        cycle_name = {1: "Strong", 2: "Middling", 3: "Weak"}[cycle]
+
+        # Good taras: Sampat(2), Kshema(4), Sadhana(6), Mitra(8), Parama Mitra(9)
+        good_taras = {2, 4, 6, 8, 9}
+        # Unfavourable taras: Janma(1), Vipat(3), Pratyak(5), Naidhana(7)
+        bad_taras  = {1, 3, 5, 7}
+
+        base_desc = f"Transit Moon is in {tara_name} Tara ({cycle_name} cycle, tara {tara_num})."
+
+        _add("TarabalaFavorable", "tarabala",
+             tara_num in good_taras,
+             base_desc + " Favourable Tarabala.",
+             base_desc + " Not a favourable Tara for this individual.")
+
+        _add("TarabalaUnfavorable", "tarabala",
+             tara_num in bad_taras,
+             base_desc + " Unfavourable Tarabala — use caution.",
+             base_desc + " Tarabala is not in an unfavourable Tara.")
+
+    return events
 
 
 # ==================== DEMO ====================
