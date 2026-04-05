@@ -45,6 +45,7 @@ from logic.panchang import get_tithi, get_yoga, get_nitya_yoga_details, get_kara
 from logic.nakshatra import get_nakshatra, get_tara_bala, NAKSHATRAS
 from logic.sunrise import get_sun_times
 from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_full, get_vimshottari_dasa_schedule
+from logic.dasa_interpretations import get_pd1_interpretation, get_pd2_interpretation, get_pd3_interpretation
 from logic.varga import get_all_vargas
 from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
@@ -2644,6 +2645,96 @@ async def api_electional_events(
         "total": len(events),
         "occurring_count": sum(1 for e in events if e["occurring"]),
     }
+
+
+# =============================================================================
+# Dasa Period Interpretations
+# =============================================================================
+
+VALID_PLANETS = {"Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"}
+VALID_SIGNS = {"Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+               "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"}
+
+
+@app.get("/api/v1/dasa/interpretations/pd1", tags=["Dasa"])
+async def api_dasa_pd1_interpretation(
+    planet: str,
+    sign: str,
+):
+    """
+    Returns the PD1 (Maha Dasa) interpretation for a planet placed in a natal sign.
+
+    The interpretation describes the overall flavour of the planet's
+    full Maha Dasa period (e.g. Sun Maha Dasa when Sun is in Aries at birth).
+
+    - **planet**: Maha Dasa lord — one of Sun, Moon, Mars, Mercury, Jupiter,
+                  Venus, Saturn, Rahu, Ketu
+    - **sign**: Natal zodiac sign of that planet — e.g. Aries, Taurus, …, Pisces
+    """
+    if planet not in VALID_PLANETS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid planet '{planet}'. Must be one of: {sorted(VALID_PLANETS)}")
+    if sign not in VALID_SIGNS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid sign '{sign}'. Must be one of: {sorted(VALID_SIGNS)}")
+    result = get_pd1_interpretation(planet, sign)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"No PD1 interpretation found for planet='{planet}' sign='{sign}'")
+    return result
+
+
+@app.get("/api/v1/dasa/interpretations/pd2", tags=["Dasa"])
+async def api_dasa_pd2_interpretation(
+    maha_lord: str,
+    bhukti_lord: str,
+):
+    """
+    Returns the PD2 (Antardasa / Bhukti) interpretation for a Maha–Bhukti
+    lord combination.
+
+    - **maha_lord**: Maha Dasa lord — one of Sun, Moon, Mars, Mercury, Jupiter,
+                     Venus, Saturn, Rahu, Ketu
+    - **bhukti_lord**: Bhukti (sub-period) lord — same set of planets
+    """
+    if maha_lord not in VALID_PLANETS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid maha_lord '{maha_lord}'.")
+    if bhukti_lord not in VALID_PLANETS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid bhukti_lord '{bhukti_lord}'.")
+    result = get_pd2_interpretation(maha_lord, bhukti_lord)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"No PD2 interpretation found for maha_lord='{maha_lord}' bhukti_lord='{bhukti_lord}'")
+    return result
+
+
+@app.get("/api/v1/dasa/interpretations/pd3", tags=["Dasa"])
+async def api_dasa_pd3_interpretation(
+    maha_lord: str,
+    antar_lord: str,
+):
+    """
+    Returns the PD3 (Pratyantardasa) scores for a Maha–Antar lord combination.
+
+    Note: Descriptions for PD3 are not available in the source data.
+    Only the nature and life-area scores are returned.
+
+    - **maha_lord**: Maha Dasa lord
+    - **antar_lord**: Antardasa lord
+    """
+    if maha_lord not in VALID_PLANETS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid maha_lord '{maha_lord}'.")
+    if antar_lord not in VALID_PLANETS:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Invalid antar_lord '{antar_lord}'.")
+    result = get_pd3_interpretation(maha_lord, antar_lord)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"No PD3 entry found for maha_lord='{maha_lord}' antar_lord='{antar_lord}'")
+    return result
 
 
 # =============================================================================
