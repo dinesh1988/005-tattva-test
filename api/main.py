@@ -54,6 +54,7 @@ from logic.functional_nature import get_functional_nature, get_functional_nature
 from logic.shadbala import get_shadbala_summary, get_shadbala_ratios
 from logic.vedha import calculate_vedha_status
 from logic.gochara import get_gochara_predictions, get_gochara_summary, get_gochara_prediction
+from logic.planet_in_house import get_all_planet_in_house_interpretations
 
 # Database imports
 from api.database import (
@@ -310,6 +311,21 @@ class GocharaPredictionRequest(BaseModel):
     transit_timezone: Optional[str] = Field(None, description="Transit timezone (IANA)")
     transit_date: Optional[str] = Field(None, description="Transit date YYYY-MM-DD (defaults to today)")
     transit_time: Optional[str] = Field(None, description="Transit time HH:MM[:SS] (defaults to now)")
+
+
+class PlanetInHouseRequest(BaseModel):
+    """Request for natal Planet-in-House interpretations.
+
+    Provide birth data so planetary natal house placements can be determined.
+    Returns classical Vedic interpretation text for all 9 planets.
+    """
+
+    birth_date: str = Field(..., description="Birth date YYYY-MM-DD", example="1988-06-07")
+    birth_time: str = Field(..., description="Birth time HH:MM[:SS]", example="20:40")
+    birth_place: Optional[str] = Field(None, description="Birth city name", example="Chennai")
+    birth_latitude: Optional[float] = Field(None, description="Birth latitude override")
+    birth_longitude: Optional[float] = Field(None, description="Birth longitude override")
+    birth_timezone: Optional[str] = Field(None, description="Birth timezone (IANA)", example="Asia/Kolkata")
 
 
 class DailyFiveStepRequest(BaseModel):
@@ -1568,6 +1584,52 @@ async def get_gochara_predictions_endpoint(request: GocharaPredictionRequest):
         },
         "summary": summary,
         "predictions": predictions,
+    }
+
+
+@app.post("/api/v1/chart/interpretations", tags=["Natal Chart"])
+async def get_planet_in_house_endpoint(request: PlanetInHouseRequest):
+    """Natal Planet-in-House interpretations for all 9 planets.
+
+    For each of the 9 planets (Sun, Moon, Mars, Mercury, Jupiter, Venus,
+    Saturn, Rahu, Ketu) this endpoint returns:
+    - The natal house number (1–12) occupied by the planet
+    - Classical Vedic interpretation text for that planet-in-house placement
+
+    Interpretations are sourced from B.V. Raman's classical texts as ported
+    into the VedAstro C# library (HoroscopeDataListStatic.cs).
+    """
+    # ── Birth location ───────────────────────────────────────────────────────
+    if request.birth_latitude is not None and request.birth_longitude is not None:
+        b_lat = request.birth_latitude
+        b_lon = request.birth_longitude
+        b_tz = request.birth_timezone or "UTC"
+    elif request.birth_place:
+        loc = get_location(request.birth_place)
+        if not loc:
+            raise HTTPException(status_code=400, detail=f"Could not find birth place '{request.birth_place}'")
+        b_lat = loc['latitude']
+        b_lon = loc['longitude']
+        b_tz = request.birth_timezone or loc['timezone']
+    else:
+        raise HTTPException(status_code=400, detail="Provide birth_place or birth_latitude/birth_longitude")
+
+    birth_dt = _parse_local_datetime(request.birth_date, request.birth_time, b_tz)
+    birth_astro_time = AstroTime(dt=birth_dt, lat=b_lat, lon=b_lon)
+
+    # ── Compute interpretations ──────────────────────────────────────────────
+    interpretations = get_all_planet_in_house_interpretations(birth_astro_time)
+
+    return {
+        "birth": {
+            "date": request.birth_date,
+            "time": request.birth_time,
+            "place": request.birth_place,
+            "latitude": b_lat,
+            "longitude": b_lon,
+            "timezone": b_tz,
+        },
+        "planet_in_house": interpretations,
     }
 
 
