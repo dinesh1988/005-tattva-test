@@ -1875,6 +1875,207 @@ def get_vedha(
 
 
 # ---------------------------------------------------------------------------
+# P1 – Kundali Matching (Ashtakuta)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def kundali_compatibility(
+    person1_dt: str,
+    person1_lat: float,
+    person1_lon: float,
+    person2_dt: str,
+    person2_lat: float,
+    person2_lon: float,
+) -> dict:
+    """Ashtakuta (8-factor) Kundali compatibility / marriage matching.
+
+    Calculates all 8 Kuta scores (Varna, Vashya, Tara, Yoni, Graha Maitri,
+    Gana, Bhakuta, Nadi) totalling up to 36 points, plus Ghataka and
+    Mangal dosha checks.
+
+    Args:
+        person1_dt:  Birth datetime ISO 8601 for person 1 (e.g. "1988-06-07T20:40:00+05:30")
+        person1_lat: Birth latitude for person 1
+        person1_lon: Birth longitude for person 1
+        person2_dt:  Birth datetime ISO 8601 for person 2
+        person2_lat: Birth latitude for person 2
+        person2_lon: Birth longitude for person 2
+
+    Returns:
+        {"total_score": float, "max_score": 36, "compatibility_percent": float,
+         "grade": str, "kutas": {name: {score, max, description}, ...},
+         "ghataka": {...}, "mangal_dosha": {...}}
+    """
+    from logic.kundali_matching import get_kundali_matching
+    t1 = AstroTime(datetime.fromisoformat(person1_dt).astimezone(pytz.utc), person1_lat, person1_lon)
+    t2 = AstroTime(datetime.fromisoformat(person2_dt).astimezone(pytz.utc), person2_lat, person2_lon)
+    return get_kundali_matching(t1, t2)
+
+
+# ---------------------------------------------------------------------------
+# P3 – Planet-in-House interpretations
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_planet_in_house_interpretations(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+) -> dict:
+    """Natal chart interpretation: planet-in-house placements.
+
+    Returns the traditional interpretive text for every planet in its natal
+    house (e.g. Sun in House 1, Moon in House 7, etc.) — 108 possible entries.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+
+    Returns:
+        {"interpretations": [{planet, house, nature, scores, description}, ...]}
+    """
+    from logic.planet_in_house import get_all_planet_in_house_interpretations
+    t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    return {"interpretations": get_all_planet_in_house_interpretations(t)}
+
+
+# ---------------------------------------------------------------------------
+# P4 – Planet-in-Sign interpretations
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_planet_in_sign_interpretations(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+) -> dict:
+    """Natal chart interpretation: planet-in-sign placements.
+
+    Returns the traditional interpretive text for each planet in its natal
+    zodiac sign (e.g. Sun in Aries, Mars in Scorpio, etc.) — up to 84 entries.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+
+    Returns:
+        {"interpretations": [{planet, sign, nature, scores, description}, ...]}
+    """
+    from logic.planet_in_sign import get_all_planet_in_sign_interpretations
+    t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    return {"interpretations": get_all_planet_in_sign_interpretations(t)}
+
+
+# ---------------------------------------------------------------------------
+# P5 – House Lord in House interpretations
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_house_lord_in_house_interpretations(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+) -> dict:
+    """Natal chart interpretation: house lord placements.
+
+    Returns interpretive text for each house lord in the house it occupies
+    (e.g. Lord of House 1 in House 5, Lord of House 7 in House 12, etc.).
+    Covers fortified and afflicted variants where available.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+
+    Returns:
+        {"interpretations": [{lord_house, placed_in_house, nature, description}, ...]}
+    """
+    from logic.house_lord_in_house import get_all_house_lord_in_house_interpretations
+    t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    return {"interpretations": get_all_house_lord_in_house_interpretations(t)}
+
+
+# ---------------------------------------------------------------------------
+# P6 – Rising Sign (Lagna) interpretation
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_rising_sign_interpretation(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+) -> dict:
+    """Rising sign (Lagna / Ascendant) personality and life-path interpretation.
+
+    Returns the traditional Vedic interpretation for the natal Lagna sign —
+    covering physical appearance, temperament, health tendencies, and
+    life-path themes.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+
+    Returns:
+        {"sign": str, "nature": str, "description": str, "scores": {...}}
+    """
+    from logic.rising_sign import get_rising_sign_interpretation as _get
+    t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    return _get(t)
+
+
+# ---------------------------------------------------------------------------
+# P8 – Dasa Period interpretations (PD1 / PD2 / PD3)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_dasa_period_interpretation(
+    level: str,
+    param1: str,
+    param2: str,
+) -> dict:
+    """Vimshottari Dasa period interpretation (PD1, PD2, or PD3).
+
+    Looks up the traditional interpretive text for a given dasa combination.
+
+    **level = "PD1"** — Maha Dasa interpretation based on the planet's natal sign.
+        param1 = planet name (e.g. "Sun")
+        param2 = natal sign of that planet (e.g. "Aries")
+
+    **level = "PD2"** — Antardasa (Bhukti) interpretation.
+        param1 = maha dasa lord (e.g. "Jupiter")
+        param2 = bhukti lord (e.g. "Saturn")
+
+    **level = "PD3"** — Pratyantardasa scores (descriptions are empty in source).
+        param1 = maha dasa lord
+        param2 = antar dasa lord
+
+    Args:
+        level:  "PD1", "PD2", or "PD3"
+        param1: Planet / maha lord name
+        param2: Sign name (PD1) or bhukti/antar lord name (PD2/PD3)
+
+    Returns:
+        {"name": str, "nature": str, "scores": {...}, "description": str, "level": str}
+    """
+    from logic.dasa_interpretations import get_pd1_interpretation, get_pd2_interpretation, get_pd3_interpretation
+    level = level.upper()
+    if level == "PD1":
+        result = get_pd1_interpretation(param1, param2)
+    elif level == "PD2":
+        result = get_pd2_interpretation(param1, param2)
+    elif level == "PD3":
+        result = get_pd3_interpretation(param1, param2)
+    else:
+        return {"error": f"Unknown level '{level}'. Use PD1, PD2, or PD3."}
+    if result is None:
+        return {"error": f"No {level} interpretation found for '{param1}' / '{param2}'."}
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
