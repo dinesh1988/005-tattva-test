@@ -18,6 +18,10 @@ from logic.house_queries import get_planet_house, get_planets_in_house, get_lagn
 from logic.calculate import get_planet_longitude
 from logic.time import AstroTime
 from logic.rasi import get_rasi
+from logic.ashtakavarga import get_all_bhinnashtakavarga
+from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_schedule
+from logic.lordship import get_lord_of_house
+from logic.shadbala import get_all_planet_shadbala, get_bhava_bala
 
 # ==================== TITHI CLASSIFICATIONS ====================
 
@@ -1238,6 +1242,7 @@ _WD_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 def get_all_electional_events(
     time: AstroTime,
     birth_nakshatra_num: int = None,
+    birth_time: AstroTime = None,
 ) -> List[Dict]:
     """
     Evaluates all individual electional (muhurtha) events for the given moment.
@@ -1460,6 +1465,206 @@ def get_all_electional_events(
              tara_num in bad_taras,
              base_desc + " Unfavourable Tarabala — use caution.",
              base_desc + " Tarabala is not in an unfavourable Tara.")
+
+    # ── [P9] Ashtakavarga Gochara Bindu ──────────────────────────────────────
+    # 63 events: 7 planets × 9 bindu levels (0–8).
+    # True when a planet's Bhinnashtakavarga score in its current transit sign
+    # equals exactly N bindus (using the natal birth chart BAV).
+    if birth_time is not None:
+        _bav = get_all_bhinnashtakavarga(birth_time)
+        for _p_name in ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]:
+            _p_enum = getattr(Planet, _p_name)
+            _p_long = get_planet_longitude(_p_enum, time)
+            _, _transit_sign = get_rasi(_p_long)
+            _bindu = _bav[_p_name].get(_transit_sign, 0)
+            for _n in range(9):
+                _add(
+                    f"{_p_name}Transit{_n}Bindu",
+                    "ashtakavarga_bindu",
+                    _bindu == _n,
+                    f"{_p_name} transits a sign with {_n} BAV bindus — affects the strength of transit results.",
+                    f"{_p_name} is not in a {_n}-bindu sign (current transit sign has {_bindu} bindus).",
+                )
+
+    # ── [P9] Dasa-Based Events ────────────────────────────────────────────────
+    # 15 events based on current Vimshottari Dasa/Bhukti relative to natal chart.
+    if birth_time is not None:
+        # Birth nakshatra position
+        _b_moon_long = get_planet_longitude(Planet.Moon, birth_time)
+        _, _b_nak_num, _b_nak_pct, _ = get_nakshatra(_b_moon_long)
+
+        # Strip timezone for dasa arithmetic (all comparisons use naive datetimes)
+        _birth_dt = birth_time.datetime.replace(tzinfo=None) if birth_time.datetime.tzinfo else birth_time.datetime
+        _transit_dt = time.datetime.replace(tzinfo=None) if time.datetime.tzinfo else time.datetime
+
+        # Current maha dasa and bhukti lords as strings (e.g. "Jupiter", "Saturn")
+        _maha_lord, _bhukti_lord = get_vimshottari_dasa(_b_nak_num, _b_nak_pct, _birth_dt, _transit_dt)
+
+        # Dasa count from birth: 1 = birth dasa, 2 = next dasa, …
+        _sched = get_vimshottari_dasa_schedule(_b_nak_num, _b_nak_pct, _birth_dt)
+        _dasa_count = 9  # fallback
+        for _di, _md in enumerate(_sched.get("maha_dasas", [])):
+            _md_start = datetime.strptime(_md["start_date"], "%Y-%m-%d")
+            _md_end   = datetime.strptime(_md["end_date"],   "%Y-%m-%d")
+            if _md_start <= _transit_dt < _md_end:
+                _dasa_count = _di + 1
+                break
+
+        # Lords of natal houses (as planet name strings)
+        _lord1 = get_lord_of_house(1,  birth_time).name
+        _lord2 = get_lord_of_house(2,  birth_time).name
+        _lord3 = get_lord_of_house(3,  birth_time).name
+        _lord5 = get_lord_of_house(5,  birth_time).name
+        _lord6 = get_lord_of_house(6,  birth_time).name
+        _lord8 = get_lord_of_house(8,  birth_time).name
+        _lord9 = get_lord_of_house(9,  birth_time).name
+
+        # Natal house of Sun and house lords (for same-house conjunction check)
+        _sun_birth_house  = get_planet_house(Planet.Sun, birth_time)
+        _lord2_birth_house = get_planet_house(get_lord_of_house(2,  birth_time), birth_time)
+        _lord5_birth_house = get_planet_house(get_lord_of_house(5,  birth_time), birth_time)
+        _lord9_birth_house = get_planet_house(get_lord_of_house(9,  birth_time), birth_time)
+        _lord10_birth_house = get_planet_house(get_lord_of_house(10, birth_time), birth_time)
+
+        # Helper: natal house of a dasa/bhukti lord (handles all 9 vimshottari planets)
+        _DASA_PLANET_MAP = {
+            "Sun": Planet.Sun, "Moon": Planet.Moon, "Mars": Planet.Mars,
+            "Mercury": Planet.Mercury, "Jupiter": Planet.Jupiter,
+            "Venus": Planet.Venus, "Saturn": Planet.Saturn,
+            "Rahu": Planet.Rahu, "Ketu": Planet.Ketu,
+        }
+
+        def _birth_house_of(planet_name: str) -> int:
+            p = _DASA_PLANET_MAP.get(planet_name)
+            return get_planet_house(p, birth_time) if p is not None else 0
+
+        _maha_birth_house   = _birth_house_of(_maha_lord)
+        _bhukti_birth_house = _birth_house_of(_bhukti_lord)
+
+        # Sun natal sign for exaltation/debilitation checks
+        _sun_birth_long = get_planet_longitude(Planet.Sun, birth_time)
+        _, _sun_birth_sign = get_rasi(_sun_birth_long)      # 1=Aries … 12=Pisces
+
+        _add("Lord6And8Dasa", "dasa",
+             _maha_lord in (_lord6, _lord8),
+             f"Lord of 6th or 8th house ({_maha_lord}) is the current maha dasa lord — generally inauspicious.",
+             f"Current maha dasa lord ({_maha_lord}) is not lord of house 6 or 8.")
+
+        _add("Lord5And9Dasa", "dasa",
+             _maha_lord in (_lord5, _lord9),
+             f"Lord of 5th or 9th house ({_maha_lord}) is the current maha dasa lord — auspicious.",
+             f"Current maha dasa lord ({_maha_lord}) is not lord of house 5 or 9.")
+
+        _add("Lord5And9DasaBhukti", "dasa",
+             (_maha_lord == _lord5 and _bhukti_lord == _lord9) or
+             (_maha_lord == _lord9 and _bhukti_lord == _lord5),
+             f"Maha dasa lord ({_maha_lord}) and bhukti lord ({_bhukti_lord}) are lords of houses 5 and 9 — highly auspicious.",
+             f"Current dasa/bhukti ({_maha_lord}/{_bhukti_lord}) is not the 5th–9th lord combination.")
+
+        _bad_bhukti_dasa = (
+            (_bhukti_birth_house == 6  and _maha_birth_house == 8) or
+            (_bhukti_birth_house == 12 and _maha_birth_house == 2)
+        )
+        _add("BhuktiDasaLordInBadHouses", "dasa",
+             _bad_bhukti_dasa,
+             f"Bhukti lord ({_bhukti_lord}) natally in house {_bhukti_birth_house} and dasa lord ({_maha_lord}) in house {_maha_birth_house} — inauspicious combination.",
+             f"Dasa/bhukti lords are not in a bad house pairing.")
+
+        _add("LagnaLordDasa", "dasa",
+             _maha_lord == _lord1,
+             f"Ascendant lord ({_maha_lord}) is the current maha dasa lord — favourable for self-expression and vitality.",
+             f"Current maha dasa lord ({_maha_lord}) is not the ascendant lord.")
+
+        _add("Lord2Dasa", "dasa",
+             _maha_lord == _lord2,
+             f"Lord of 2nd house ({_maha_lord}) is the current maha dasa lord — favourable for wealth and finances.",
+             f"Current maha dasa lord ({_maha_lord}) is not lord of house 2.")
+
+        _add("Lord3Dasa", "dasa",
+             _maha_lord == _lord3,
+             f"Lord of 3rd house ({_maha_lord}) is the current maha dasa lord.",
+             f"Current maha dasa lord ({_maha_lord}) is not lord of house 3.")
+
+        _add("Saturn4thDasa", "dasa",
+             _maha_lord == "Saturn" and _dasa_count == 4,
+             f"Saturn is the current maha dasa lord and this is the 4th dasa from birth — generally unfavourable.",
+             f"Saturn 4th dasa condition not met (dasa lord: {_maha_lord}, count: {_dasa_count}).")
+
+        _add("Jupiter6thDasa", "dasa",
+             _maha_lord == "Jupiter" and _dasa_count == 6,
+             f"Jupiter is the current maha dasa lord and this is the 6th dasa from birth — generally unfavourable.",
+             f"Jupiter 6th dasa condition not met (dasa lord: {_maha_lord}, count: {_dasa_count}).")
+
+        # ElevatedSunDasa: C# marks isSunElevated as TODO/false; implemented here as Sun in exaltation (Aries = sign 1)
+        _add("ElevatedSunDasa", "dasa",
+             _maha_lord == "Sun" and _sun_birth_sign == 1,
+             "Sun dasa while Sun is elevated (exalted in Aries) — wisdom, wealth, and fame.",
+             f"Elevated Sun dasa condition not met (dasa lord: {_maha_lord}, Sun natal sign: {_sun_birth_sign}).")
+
+        # SunWithLord9Or10Dasa: Sun dasa AND Sun is in own house OR same house as lord of 9 or 10
+        _sun_in_own_house   = _sun_birth_sign == 5       # Leo = sign 5 (Sun's own sign)
+        _sun_with_lord9     = _sun_birth_house == _lord9_birth_house
+        _sun_with_lord10    = _sun_birth_house == _lord10_birth_house
+        _add("SunWithLord9Or10Dasa", "dasa",
+             _maha_lord == "Sun" and (_sun_in_own_house or _sun_with_lord9 or _sun_with_lord10),
+             "Sun dasa while Sun occupies its own house or is conjunct lord of 9th or 10th — leadership and prosperity.",
+             f"Sun with lord 9/10 dasa condition not met (dasa lord: {_maha_lord}).")
+
+        _add("SunWithLord5Dasa", "dasa",
+             _maha_lord == "Sun" and (_sun_birth_house == _lord5_birth_house),
+             "Sun dasa while Sun is conjunct lord of 5th house — birth of children and creative success.",
+             f"Sun with lord 5 dasa condition not met (dasa lord: {_maha_lord}).")
+
+        _add("SunWithLord2Dasa", "dasa",
+             _maha_lord == "Sun" and (_sun_birth_house == _lord2_birth_house),
+             "Sun dasa while Sun is conjunct lord of 2nd house — wealth and property gains.",
+             f"Sun with lord 2 dasa condition not met (dasa lord: {_maha_lord}).")
+
+        # SunBadPositionDasa: C# TODO; implemented as Sun debilitated (Libra=7) or in bad natal house (6/8/12)
+        _sun_debilitated  = _sun_birth_sign == 7          # Libra
+        _sun_in_bad_house = _sun_birth_house in (6, 8, 12)
+        _add("SunBadPositionDasa", "dasa",
+             _maha_lord == "Sun" and (_sun_debilitated or _sun_in_bad_house),
+             "Sun dasa while Sun is debilitated or in 6th/8th/12th house — disease, loss, and reverses.",
+             f"Sun bad position dasa condition not met (dasa lord: {_maha_lord}).")
+
+        # ExaltedSunDasa: Sun dasa AND Sun currently transits Aries (exaltation sign = 1)
+        _, _sun_transit_sign = get_rasi(sun_long)
+        _add("ExaltedSunDasa", "dasa",
+             _maha_lord == "Sun" and _sun_transit_sign == 1,
+             "Sun dasa while Sun is currently transiting its exaltation sign (Aries) — sudden gains and auspicious travels.",
+             f"Exalted Sun dasa condition not met (dasa lord: {_maha_lord}, transit sign: {_sun_transit_sign}).")
+
+    # ── [P9] Planet Strength Flags ────────────────────────────────────────────
+    # 7 events: exactly one is True — the planet with the highest Shadbala total
+    # at the transit moment.  Mirrors AllPlanetOrderedByStrength(time)[0] from C#.
+    _planet_sdb = get_all_planet_shadbala(time.datetime, time.lat, time.lon)
+    _strongest_planet = max(_planet_sdb, key=lambda p: _planet_sdb[p]["total_rupas"])
+    for _ps_name in ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]:
+        _add(
+            f"{_ps_name}IsStrong",
+            "strength",
+            _strongest_planet == _ps_name,
+            f"{_ps_name} is the strongest planet by Shadbala at this moment.",
+            f"{_ps_name} is not the strongest planet (strongest: {_strongest_planet}).",
+        )
+
+    # ── [P9] House Strength Flags ─────────────────────────────────────────────
+    # 12 events: exactly one is True — the house with the highest Bhava Bala total
+    # at the transit moment.  Mirrors AllHousesOrderedByStrength(time)[0] from C#.
+    _house_strengths = {
+        h: get_bhava_bala(h, time.julian_day, time.lat, time.lon)["total"]
+        for h in range(1, 13)
+    }
+    _strongest_house = max(_house_strengths, key=_house_strengths.get)
+    for _hs_num in range(1, 13):
+        _add(
+            f"House{_hs_num}IsStrong",
+            "strength",
+            _strongest_house == _hs_num,
+            f"House {_hs_num} is the strongest house by Bhava Bala at this moment.",
+            f"House {_hs_num} is not the strongest house (strongest: House {_strongest_house}).",
+        )
 
     return events
 
