@@ -2426,6 +2426,210 @@ def get_daily_prediction_for_date(
 
 
 # ---------------------------------------------------------------------------
+# P11 New Tools — Dasa Full / Bhava Chalit / Varna / Maraka / Upagrahas
+# ---------------------------------------------------------------------------
+
+from logic.dasa import get_vimshottari_dasa_full as _get_dasa_full
+from logic.bhava_chalit import get_bhava_chalit as _get_bhava_chalit
+from logic.functional_nature import get_birth_varna as _get_varna, get_maraka_planets as _get_maraka
+from logic.upagraha import get_upagraha_positions as _get_upagrahas
+
+
+@mcp.tool()
+def get_dasa_full(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    timezone: Optional[str] = None,
+    current_date: Optional[str] = None,
+) -> dict:
+    """
+    Return the complete 7-level Vimshottari Dasa breakdown for a birth chart.
+
+    Levels: Maha Dasa → Bhukti → Pratyantara → Sookshma → Prana → Avi Prana → Viprana.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: City name.
+        latitude: Latitude override.
+        longitude: Longitude override.
+        timezone: IANA timezone override.
+        current_date: Evaluation date YYYY-MM-DD (defaults to today).
+
+    Returns:
+        Dict with moon_nakshatra and all 7 dasa levels with durations.
+    """
+    try:
+        place, lat, lon, tz_name = _resolve_location(birth_place, latitude, longitude, timezone)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    birth_dt = _parse_dt(birth_date, birth_time, tz_name)
+    eval_dt = datetime.strptime(current_date, "%Y-%m-%d") if current_date else datetime.now()
+
+    at = AstroTime(birth_dt, lat, lon)
+    moon_long = get_planet_longitude(Planet.Moon, at)
+    nak_name, nak_num, nak_pct, _ = get_nakshatra(moon_long)
+
+    result = _get_dasa_full(nak_num, nak_pct, birth_dt, eval_dt)
+    return {
+        "birth_date": birth_date,
+        "current_date": eval_dt.strftime("%Y-%m-%d"),
+        "moon_nakshatra": nak_name,
+        "dasa": result,
+    }
+
+
+@mcp.tool()
+def get_bhava_chalit(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    timezone: Optional[str] = None,
+) -> dict:
+    """
+    Return Bhava Chalit (Sripati) house cusps and planet redistribution.
+
+    In the Sripati system each house cusp is the *middle* of the house sector.
+    Planets may occupy a different Chalit house than their Rasi (D1) house.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: City name.
+        latitude: Latitude override.
+        longitude: Longitude override.
+        timezone: IANA timezone override.
+
+    Returns:
+        Dict with cusps (sidereal), cusps_rasi, planet_chalit_house, planet_rasi_house,
+        and differs_from_rasi (planets that moved to a different house).
+    """
+    try:
+        place, lat, lon, tz_name = _resolve_location(birth_place, latitude, longitude, timezone)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    dt = _parse_dt(birth_date, birth_time, tz_name)
+    at = AstroTime(dt, lat, lon)
+    return _get_bhava_chalit(at)
+
+
+@mcp.tool()
+def get_birth_varna(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    timezone: Optional[str] = None,
+) -> dict:
+    """
+    Return Birth Varna (caste/class) based on the Moon sign.
+
+    Varna is one of the 8 Ashta-Koota compatibility factors.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: City name.
+        latitude: Latitude override.
+        longitude: Longitude override.
+        timezone: IANA timezone override.
+
+    Returns:
+        Dict with varna name, rank (1-4), moon_sign, and description.
+    """
+    try:
+        place, lat, lon, tz_name = _resolve_location(birth_place, latitude, longitude, timezone)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    dt = _parse_dt(birth_date, birth_time, tz_name)
+    at = AstroTime(dt, lat, lon)
+    moon_long = get_planet_longitude(Planet.Moon, at)
+    return _get_varna(moon_long)
+
+
+@mcp.tool()
+def get_maraka_planets(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    timezone: Optional[str] = None,
+) -> dict:
+    """
+    Return Maraka (death-inflicting) planets for the birth Lagna.
+
+    Lords of houses 2 and 7 become Maraka significators. During their Dasa/Bhukti
+    they may bring health challenges or mortality.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: City name.
+        latitude: Latitude override.
+        longitude: Longitude override.
+        timezone: IANA timezone override.
+
+    Returns:
+        Dict with lagna_sign, maraka_planets list, and description.
+    """
+    try:
+        place, lat, lon, tz_name = _resolve_location(birth_place, latitude, longitude, timezone)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    dt = _parse_dt(birth_date, birth_time, tz_name)
+    at = AstroTime(dt, lat, lon)
+    lagna_long = get_lagnam(at)
+    return _get_maraka(lagna_long)
+
+
+@mcp.tool()
+def get_upagrahas(
+    birth_date: str,
+    birth_time: str,
+    birth_place: Optional[str] = None,
+    latitude: Optional[float] = None,
+    longitude: Optional[float] = None,
+    timezone: Optional[str] = None,
+) -> dict:
+    """
+    Return Upagraha (shadow planet) positions: Gulika and Mandi.
+
+    Both are computed as the rising sign (Lagna longitude) at the moment each
+    upagraha period begins, using the classical 8-part weekday formula.
+
+    Args:
+        birth_date: Birth date YYYY-MM-DD.
+        birth_time: Birth time HH:MM[:SS].
+        birth_place: City name.
+        latitude: Latitude override.
+        longitude: Longitude override.
+        timezone: IANA timezone override.
+
+    Returns:
+        Dict with mandi and gulika sub-dicts, each containing longitude, sign, sign_degree.
+    """
+    try:
+        place, lat, lon, tz_name = _resolve_location(birth_place, latitude, longitude, timezone)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    dt = _parse_dt(birth_date, birth_time, tz_name)
+    at = AstroTime(dt, lat, lon)
+    return _get_upagrahas(at, tz_name)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 

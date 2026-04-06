@@ -3426,6 +3426,117 @@ async def get_vedha_status(
 
 
 # =============================================================================
+# P11 — New Endpoints: Dasa Full, Bhava Chalit, Varna, Maraka, Upagrahas
+# =============================================================================
+
+from logic.dasa import get_vimshottari_dasa_full
+from logic.bhava_chalit import get_bhava_chalit
+from logic.functional_nature import get_birth_varna, get_maraka_planets
+from logic.upagraha import get_upagraha_positions
+
+
+def _resolve_birth(birth_data: BirthData):
+    """Shared helper — resolve lat/lon/tz and parse birth datetime."""
+    if birth_data.latitude and birth_data.longitude:
+        lat = birth_data.latitude
+        lon = birth_data.longitude
+        tz_name = birth_data.timezone or "UTC"
+    else:
+        location = get_location(birth_data.birth_place)
+        if not location:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not find location '{birth_data.birth_place}'"
+            )
+        lat = location['latitude']
+        lon = location['longitude']
+        tz_name = birth_data.timezone or location['timezone']
+    dt = _parse_local_datetime(birth_data.birth_date, birth_data.birth_time, tz_name)
+    return dt, lat, lon, tz_name
+
+
+@app.post("/api/v1/chart/dasa/full", tags=["Birth Chart"])
+async def get_dasa_full(birth_data: BirthData, current_date: Optional[str] = None):
+    """
+    Get full 7-level Vimshottari Dasa breakdown.
+
+    Returns Maha Dasa → Bhukti → Pratyantara → Sookshma → Prana → Avi Prana → Viprana.
+    """
+    birth_dt, lat, lon, tz_name = _resolve_birth(birth_data)
+
+    if current_date:
+        try:
+            current_dt = datetime.strptime(current_date, "%Y-%m-%d")
+        except Exception:
+            raise HTTPException(status_code=400, detail="current_date must be YYYY-MM-DD")
+    else:
+        current_dt = datetime.now()
+
+    at = AstroTime(birth_dt, lat, lon)
+    moon_long = get_planet_longitude(Planet.Moon, at)
+    nak_name, nak_num, nak_pct, _ = get_nakshatra(moon_long)
+
+    result = get_vimshottari_dasa_full(nak_num, nak_pct, birth_dt, current_dt)
+    return {
+        "birth_date": birth_data.birth_date,
+        "current_date": current_dt.strftime("%Y-%m-%d"),
+        "moon_nakshatra": nak_name,
+        "dasa": result,
+    }
+
+
+@app.post("/api/v1/chart/bhava-chalit", tags=["Birth Chart"])
+async def get_bhava_chalit_chart(birth_data: BirthData):
+    """
+    Get Bhava Chalit (Sripati) house cusps and planet redistribution.
+
+    Shows which Chalit house each planet occupies (may differ from Rasi house).
+    """
+    birth_dt, lat, lon, tz_name = _resolve_birth(birth_data)
+    at = AstroTime(birth_dt, lat, lon)
+    return get_bhava_chalit(at)
+
+
+@app.post("/api/v1/chart/varna", tags=["Birth Chart"])
+async def get_varna(birth_data: BirthData):
+    """
+    Get Birth Varna (caste/class) based on Moon sign.
+
+    Used in Ashta-Koota compatibility matching.
+    """
+    birth_dt, lat, lon, tz_name = _resolve_birth(birth_data)
+    at = AstroTime(birth_dt, lat, lon)
+    moon_long = get_planet_longitude(Planet.Moon, at)
+    return get_birth_varna(moon_long)
+
+
+@app.post("/api/v1/chart/maraka", tags=["Birth Chart"])
+async def get_maraka(birth_data: BirthData):
+    """
+    Get Maraka (death-inflicting) planets for the birth Lagna.
+
+    These planets become health significators during their Dasa/Bhukti periods.
+    """
+    birth_dt, lat, lon, tz_name = _resolve_birth(birth_data)
+    at = AstroTime(birth_dt, lat, lon)
+    lagna_long = get_lagnam(at)
+    return get_maraka_planets(lagna_long)
+
+
+@app.post("/api/v1/chart/upagrahas", tags=["Birth Chart"])
+async def get_upagrahas(birth_data: BirthData):
+    """
+    Get Upagraha (shadow planet) positions: Gulika and Mandi.
+
+    Positions are the Lagna (rising sign) longitude at the moment each
+    upagraha begins, calculated using the weekday-based 8-part formula.
+    """
+    birth_dt, lat, lon, tz_name = _resolve_birth(birth_data)
+    at = AstroTime(birth_dt, lat, lon)
+    return get_upagraha_positions(at, tz_name)
+
+
+# =============================================================================
 # MCP Server (mounted at /mcp)
 # POST /mcp/  →  streamable-http (stateless, Cloud Run safe)
 # Compatible with Claude Desktop, VS Code, and any MCP client

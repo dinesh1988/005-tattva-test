@@ -260,3 +260,133 @@ def get_functional_nature_categorized(lagna_num: int) -> dict:
         'neutrals': neutrals,
         'yogakaraka': yogakaraka
     }
+
+
+# =============================================================================
+# VARNA — Birth Caste based on Moon Sign
+# =============================================================================
+# Ported from Core.cs BirthVarna().
+#
+# Moon sign determines the Varna (social class) at birth.
+# Varna is used in Ashta-Koota compatibility matching.
+
+_VARNA_MAP = {
+    "Cancer":      "BrahminScholar",
+    "Scorpio":     "BrahminScholar",
+    "Pisces":      "BrahminScholar",
+    "Leo":         "KshatriyaWarrior",
+    "Sagittarius": "KshatriyaWarrior",
+    "Libra":       "KshatriyaWarrior",
+    "Aries":       "VaisyaWorkmen",
+    "Gemini":      "VaisyaWorkmen",
+    "Aquarius":    "VaisyaWorkmen",
+    "Taurus":      "SudraServant",
+    "Virgo":       "SudraServant",
+    "Capricorn":   "SudraServant",
+}
+
+_VARNA_RANK = {
+    "BrahminScholar":  4,
+    "KshatriyaWarrior": 3,
+    "VaisyaWorkmen":   2,
+    "SudraServant":    1,
+}
+
+_SIGN_NAMES = [
+    "", "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
+]
+
+
+def get_birth_varna(moon_longitude: float) -> dict:
+    """
+    Calculate Birth Varna from Moon sign longitude.
+
+    Args:
+        moon_longitude: Sidereal Moon longitude in degrees (0-360).
+
+    Returns:
+        {
+            "varna":       str (e.g. "BrahminScholar"),
+            "rank":        int (1-4; 4=Brahmin, 1=Sudra),
+            "moon_sign":   str,
+            "description": str
+        }
+
+    Ported from Core.cs BirthVarna().
+    """
+    sign_num = int(moon_longitude / 30.0) % 12 + 1
+    moon_sign = _SIGN_NAMES[sign_num]
+    varna = _VARNA_MAP.get(moon_sign, "BrahminScholar")
+    rank = _VARNA_RANK[varna]
+
+    _DESCRIPTIONS = {
+        "BrahminScholar":   "Brahmin — scholar, priest, teacher; highest spiritual rank.",
+        "KshatriyaWarrior": "Kshatriya — warrior, ruler, protector.",
+        "VaisyaWorkmen":    "Vaisya — merchant, craftsman, farmer.",
+        "SudraServant":     "Sudra — laborer, servant, service class.",
+    }
+
+    return {
+        "varna":       varna,
+        "rank":        rank,
+        "moon_sign":   moon_sign,
+        "description": _DESCRIPTIONS[varna],
+    }
+
+
+# =============================================================================
+# MARAKA PLANETS — Lords of Death-Inflicting Houses
+# =============================================================================
+# Ported from Core.cs IsPlanetMarakaToLagna().
+#
+# Maraka = "killer" planets. Lords of houses 2 and 7 (and their associates)
+# are traditionally considered Maraka for the Lagna. The table below is the
+# exact C# lookup (one row per Lagna sign, sorted by severity).
+
+_MARAKA_TABLE = {
+    "Aries":       ["Mercury", "Saturn"],
+    "Taurus":      ["Jupiter", "Venus"],
+    "Gemini":      ["Mars",    "Jupiter"],
+    "Cancer":      ["Mercury", "Venus"],
+    "Leo":         ["Mercury", "Venus"],
+    "Virgo":       ["Mars",    "Jupiter"],
+    "Libra":       ["Jupiter"],
+    "Scorpio":     ["Mercury", "Venus", "Saturn"],
+    "Sagittarius": ["Venus",   "Saturn"],
+    "Capricorn":   ["Mars",    "Jupiter"],
+    "Aquarius":    ["Mars"],
+    "Pisces":      ["Mercury", "Venus", "Saturn"],
+}
+
+
+def get_maraka_planets(lagna_longitude: float) -> dict:
+    """
+    Return the Maraka (death-inflicting) planets for the given Lagna sign.
+
+    Args:
+        lagna_longitude: Sidereal Lagna longitude in degrees (0-360).
+
+    Returns:
+        {
+            "lagna_sign":     str,
+            "maraka_planets": list[str],
+            "description":    str
+        }
+
+    Ported from Core.cs IsPlanetMarakaToLagna().
+    """
+    sign_num = int(lagna_longitude / 30.0) % 12 + 1
+    lagna_sign = _SIGN_NAMES[sign_num]
+    marakas = _MARAKA_TABLE.get(lagna_sign, [])
+
+    return {
+        "lagna_sign":     lagna_sign,
+        "maraka_planets": marakas,
+        "description": (
+            f"Maraka (death-inflicting) planets for {lagna_sign} Lagna are "
+            f"{', '.join(marakas) if marakas else 'none identified'}. "
+            "These planets become significators of 2nd and 7th houses and may "
+            "cause health challenges during their Dasa/Bhukti periods."
+        ),
+    }

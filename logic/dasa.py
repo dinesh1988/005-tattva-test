@@ -262,14 +262,55 @@ def _calculate_all_levels(maha_dasa_index: int, time_in_maha_dasa: float) -> dic
                                 prana_duration = (sookshma_duration * pr_years) / 120.0
                                 
                                 if prana_accumulated + prana_duration > time_in_sookshma:
+                                    time_in_prana = time_in_sookshma - prana_accumulated
                                     result["prana"] = pr_name
                                     result["prana_duration_hours"] = prana_duration * 365.2425 * 24
+                                    
+                                    # --- Level 6: Avi Prana ---
+                                    avi_index = prana_index
+                                    avi_accumulated = 0.0
+                                    
+                                    for _ in range(9):
+                                        av_name, av_years = DASA_LORDS[avi_index]
+                                        avi_duration = (prana_duration * av_years) / 120.0
+                                        
+                                        if avi_accumulated + avi_duration > time_in_prana:
+                                            time_in_avi = time_in_prana - avi_accumulated
+                                            result["avi_prana"] = av_name
+                                            result["avi_prana_duration_minutes"] = avi_duration * 365.2425 * 24 * 60
+                                            
+                                            # --- Level 7: Viprana ---
+                                            vip_index = avi_index
+                                            vip_accumulated = 0.0
+                                            
+                                            for _ in range(9):
+                                                vp_name, vp_years = DASA_LORDS[vip_index]
+                                                vip_duration = (avi_duration * vp_years) / 120.0
+                                                
+                                                if vip_accumulated + vip_duration > time_in_avi:
+                                                    result["viprana"] = vp_name
+                                                    result["viprana_duration_seconds"] = vip_duration * 365.2425 * 24 * 3600
+                                                    return result
+                                                
+                                                vip_accumulated += vip_duration
+                                                vip_index = (vip_index + 1) % 9
+                                            
+                                            result["viprana"] = "Unknown"
+                                            return result
+                                        
+                                        avi_accumulated += avi_duration
+                                        avi_index = (avi_index + 1) % 9
+                                    
+                                    result["avi_prana"] = "Unknown"
+                                    result["viprana"] = "Unknown"
                                     return result
                                 
                                 prana_accumulated += prana_duration
                                 prana_index = (prana_index + 1) % 9
                             
                             result["prana"] = "Unknown"
+                            result["avi_prana"] = "Unknown"
+                            result["viprana"] = "Unknown"
                             return result
                         
                         sookshma_accumulated += sookshma_duration

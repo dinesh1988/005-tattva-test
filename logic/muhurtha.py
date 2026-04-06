@@ -1299,6 +1299,29 @@ def _good_yoga_all_agriculture(tithi_num: int, python_weekday: int, time: "Astro
     return True
 
 
+# =============================================================================
+# SURYA SANKRAMANA — Sun Sign Ingress/Egress Window
+# =============================================================================
+# Ported from Muhurtha.cs IsSuryaSankramanaOccuring().
+#
+# The 16 ghatis (≈6 hours 24 minutes) before AND after the Sun crosses a sign
+# boundary are considered inauspicious (Surya Sankramana Dosha).
+
+_SURYA_SANKRAMANA_HOURS = 6.4   # 16 ghatis = 6 h 24 min
+
+
+def is_surya_sankramana_occurring(time: AstroTime) -> bool:
+    """
+    Returns True if the Sun is within 6.4 hours (16 ghatis) of crossing a
+    sign boundary (either entry into or exit from a sign).
+
+    Ported from Muhurtha.cs IsSuryaSankramanaOccuring().
+    """
+    from .calculate import get_sun_sign_timing
+    hours_since_entry, hours_until_exit = get_sun_sign_timing(time)
+    return hours_since_entry <= _SURYA_SANKRAMANA_HOURS or hours_until_exit <= _SURYA_SANKRAMANA_HOURS
+
+
 def _get_yama_count(time: "AstroTime") -> int:
     """Compute day-Yama number 1-5 (daytime divided into 5 equal parts)."""
     import swisseph as _swe_yama
@@ -2062,6 +2085,12 @@ def get_all_electional_events(
              _yama == _yn,
              f"Currently in Yama {_yn} of the day (daytime divided into 5 equal parts).",
              f"Not currently in Yama {_yn} (current Yama is {_yama}).")
+
+    # ── SuryaSankramana ───────────────────────────────────────────────────────
+    _add("SuryaSankramana", "astronomy",
+         is_surya_sankramana_occurring(time),
+         "Surya Sankramana is occurring — Sun is within 6.4 hours of a sign change. Avoid important activities.",
+         "No Surya Sankramana — Sun is not near a sign boundary.")
 
     return events
 

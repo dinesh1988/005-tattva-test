@@ -83,3 +83,45 @@ def get_lagnam(time: AstroTime):
         nirayana_ascendant += 360
         
     return nirayana_ascendant
+
+
+def get_sripati_cusps(time: AstroTime) -> dict:
+    """
+    Calculates the 12 Bhava (house) cusps using the Sripati system (sidereal).
+
+    In Sripati, the cusp of each house is its middle longitude.
+    Swiss Ephemeris house system 'S' returns Sripati cusps directly.
+
+    Returns:
+        Dict {"1": cusp_lon, ..., "12": cusp_lon} in sidereal (Nirayana) degrees.
+    """
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+    ayanamsa = swe.get_ayanamsa_ut(time.julian_day)
+
+    cusps, _ = swe.houses(time.julian_day, time.lat, time.lon, b'S')
+    # cusps[0] unused; cusps[1..12] are the 12 house cusps (tropical)
+    result = {}
+    for i in range(0, 12):
+        sidereal = (cusps[i] - ayanamsa) % 360
+        if sidereal < 0:
+            sidereal += 360
+        result[str(i+1)] = round(sidereal, 4)
+    return result
+
+
+def get_sun_sign_timing(time: AstroTime) -> tuple:
+    """
+    Estimates how many hours have elapsed since the Sun entered its current sign
+    and how many hours remain until it exits.
+
+    Uses the average solar speed (0.9856 deg/day).
+
+    Returns:
+        (hours_since_entry: float, hours_until_exit: float)
+    """
+    sun_long = get_planet_longitude(Planet.Sun, time)
+    degree_in_sign = sun_long % 30.0
+    speed_deg_per_hour = 0.9856 / 24.0
+    hours_since_entry = degree_in_sign / speed_deg_per_hour
+    hours_until_exit = (30.0 - degree_in_sign) / speed_deg_per_hour
+    return hours_since_entry, hours_until_exit
