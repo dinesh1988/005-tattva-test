@@ -2076,6 +2076,356 @@ def get_dasa_period_interpretation(
 
 
 # ---------------------------------------------------------------------------
+# Muhurtha sub-tools: Chandrabala, Panchaka, Ghataka
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_muhurtha_chandrabala(
+    birth_moon_sign: int,
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """Chandrabala — Moon's positional strength for a transit moment.
+
+    Measures how favourable the current Moon sign is for a person born with
+    the given natal Moon sign. A high Chandrabala (score ≥ 6) is considered
+    auspicious for starting important activities.
+
+    Args:
+        birth_moon_sign: Natal Janma Rasi sign number, 1 (Aries) … 12 (Pisces)
+        dt:  ISO 8601 datetime for the transit moment to evaluate
+        lat: Latitude for the transit moment
+        lon: Longitude for the transit moment
+
+    Returns:
+        {"chandrabala_score": int, "quality": str, "transit_moon_sign": int,
+         "birth_moon_sign": int, "description": str}
+    """
+    from logic.muhurtha import get_chandrabala
+    from logic.calculate import get_planet_longitude as _gpl
+    from logic.consts import Planet
+    from logic.rasi import get_rasi as _get_rasi
+    transit_t = AstroTime(datetime.fromisoformat(dt).astimezone(pytz.utc), lat, lon)
+    transit_moon_long = _gpl(Planet.Moon, transit_t)
+    _, transit_moon_sign_num = _get_rasi(transit_moon_long)
+    result = get_chandrabala(birth_moon_sign, transit_moon_sign_num)
+    result["birth_moon_sign"] = birth_moon_sign
+    result["transit_moon_sign"] = transit_moon_sign_num
+    return result
+
+
+@mcp.tool()
+def get_muhurtha_panchaka(
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """Panchaka Dosha check for a given moment.
+
+    Panchaka is a inauspicious period determined by the combination of
+    weekday, tithi, nakshatra, and Lagna. Returns which of the 6 types
+    is active (Mrityu, Agni, Raja, Chora, Roga, or Shubha).
+
+    Args:
+        dt:  ISO 8601 datetime to evaluate
+        lat: Latitude
+        lon: Longitude
+
+    Returns:
+        {"panchaka_type": str, "is_dosha": bool, "tithi": str,
+         "nakshatra": str, "description": str}
+    """
+    from logic.muhurtha import get_panchaka
+    from logic.calculate import get_planet_longitude as _gpl, get_lagnam as _lagnam
+    from logic.consts import Planet
+    from logic.panchang import get_tithi
+    from logic.nakshatra import get_nakshatra as _nak
+    from logic.rasi import get_rasi as _get_rasi
+    time = AstroTime(datetime.fromisoformat(dt).astimezone(pytz.utc), lat, lon)
+    sun_long  = _gpl(Planet.Sun,  time)
+    moon_long = _gpl(Planet.Moon, time)
+    _, lagna_sign_num = _get_rasi(_lagnam(time))
+    tithi_name, tithi_num, _ = get_tithi(sun_long, moon_long)
+    nak_name, nak_num, _, _ = _nak(moon_long)
+    weekday = time.datetime.weekday()
+    result = get_panchaka(tithi_num, nak_num, weekday, lagna_sign_num)
+    result["tithi"] = tithi_name
+    result["nakshatra"] = nak_name
+    return result
+
+
+@mcp.tool()
+def get_muhurtha_ghataka(
+    birth_moon_sign: int,
+    dt: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    """Ghataka Chakra — inauspicious period check for a natal Moon sign.
+
+    Looks up the Ghataka Chakra table to determine whether the current
+    transit moment is inauspicious (Ghataka) for a person with the given
+    natal Moon sign. Checks five factors: transit Moon sign, tithi group,
+    weekday, nakshatra, and Lagna sign.
+
+    Args:
+        birth_moon_sign: Natal Janma Rasi sign number 1 (Aries) … 12 (Pisces)
+        dt:  ISO 8601 datetime for the moment to check
+        lat: Latitude
+        lon: Longitude
+
+    Returns:
+        {"is_ghataka": bool, "triggered_factors": [...], "safe_factors": [...],
+         "overall_quality": str}
+    """
+    from logic.muhurtha import get_ghataka_chakra
+    from logic.calculate import get_planet_longitude as _gpl, get_lagnam as _lagnam
+    from logic.consts import Planet
+    from logic.panchang import get_tithi
+    from logic.nakshatra import get_nakshatra as _nak
+    from logic.rasi import get_rasi as _get_rasi
+    time = AstroTime(datetime.fromisoformat(dt).astimezone(pytz.utc), lat, lon)
+    sun_long  = _gpl(Planet.Sun,  time)
+    moon_long = _gpl(Planet.Moon, time)
+    _, transit_moon_sign = _get_rasi(moon_long)
+    _, lagna_sign_num   = _get_rasi(_lagnam(time))
+    _, tithi_num, _ = get_tithi(sun_long, moon_long)
+    nak_name, _, _, _ = _nak(moon_long)
+    weekday = time.datetime.weekday()
+    return get_ghataka_chakra(
+        birth_moon_sign,
+        transit_moon_sign,
+        tithi_num,
+        weekday,
+        nak_name,
+        lagna_sign_num,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gochara (transit) personal predictions
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_personal_gochara_predictions(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+    transit_dt: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
+) -> dict:
+    """Personal Gochara (transit) predictions for all 9 planets vs natal Moon sign.
+
+    For each of the 9 planets (Sun, Moon, Mars, Mercury, Jupiter, Venus,
+    Saturn, Rahu, Ketu) returns:
+    - Gochara house (1–12, counted from natal Moon sign)
+    - Overall nature (Good / Bad / Neutral)
+    - Per life-area natures: Mind, Studies, Family, Money, Love, Body
+    - Full Vedic interpretation text
+
+    Also returns an aggregate summary with good/bad counts and net score.
+
+    Args:
+        birth_dt:     Birth datetime ISO 8601 (e.g. "1988-06-07T20:40:00+05:30")
+        birth_lat:    Birth latitude
+        birth_lon:    Birth longitude
+        transit_dt:   Transit moment ISO 8601 (defaults to now if omitted)
+        transit_lat:  Transit latitude (defaults to birth latitude)
+        transit_lon:  Transit longitude (defaults to birth longitude)
+
+    Returns:
+        {"natal_moon": {...}, "summary": {...}, "predictions": [...]}
+    """
+    from logic.gochara import get_gochara_predictions as _preds, get_gochara_summary as _summary
+    from logic.house_queries import get_planet_sign_num as _sign_num
+    b_t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    if transit_dt:
+        t_t = AstroTime(datetime.fromisoformat(transit_dt).astimezone(pytz.utc),
+                        transit_lat if transit_lat is not None else birth_lat,
+                        transit_lon if transit_lon is not None else birth_lon)
+    else:
+        t_t = AstroTime(datetime.now(pytz.utc),
+                        transit_lat if transit_lat is not None else birth_lat,
+                        transit_lon if transit_lon is not None else birth_lon)
+    from logic.consts import Planet as _Planet
+    moon_sign_num = _sign_num(_Planet.Moon, b_t)
+    sign_names = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                  'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+    return {
+        "natal_moon": {"sign_number": moon_sign_num, "sign_name": sign_names[moon_sign_num - 1]},
+        "summary": _summary(b_t, t_t),
+        "predictions": _preds(b_t, t_t),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Yoga summary (count-level overview)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_yoga_summary(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+) -> dict:
+    """Concise count-based yoga summary for a birth chart.
+
+    Returns aggregate counts of active/inactive yogas by nature
+    (benefic / malefic / mixed) and category, without the full
+    per-yoga text — useful for quick strength assessment.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+
+    Returns:
+        {"total": int, "active": int, "benefic": int, "malefic": int,
+         "by_category": {...}, ...}
+    """
+    from logic.yogas import yoga_summary as _ysummary
+    t = AstroTime(datetime.fromisoformat(birth_dt).astimezone(pytz.utc), birth_lat, birth_lon)
+    return _ysummary(t)
+
+
+# ---------------------------------------------------------------------------
+# Complete astrological profile (LLM-optimised bundle)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_complete_astro_profile(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+    name: str = "",
+) -> dict:
+    """Complete astrological profile — all key modules bundled for LLM use.
+
+    Computes and aggregates: natal Moon/Lagna, Vimshottari Dasa, psychic
+    profile, yoga summary, Ashtakavarga (BAV + SAV), functional nature,
+    Shadbala ratios, and Jaimini karakas.  Ideal as a single context-load
+    call before generating astrological interpretations.
+
+    Args:
+        birth_dt:  Birth datetime ISO 8601 (e.g. "1988-06-07T20:40:00+05:30")
+        birth_lat: Birth latitude
+        birth_lon: Birth longitude
+        name:      Person's name (optional, stored for reference only)
+
+    Returns:
+        Large dict with sub-keys: name, lagna, moon, current_dasa,
+        psychic_profile, yoga_summary, ashtakavarga, functional_nature,
+        shadbala_ratios, jaimini_karakas
+    """
+    from logic.psychic_profile import get_psychic_profile
+    from logic.yogas import yoga_summary as _ysummary
+    from logic.shadbala import get_shadbala_ratios
+    from logic.ashtakavarga import get_sarvashtakavarga_points, get_all_bhinnashtakavarga
+    from logic.functional_nature import get_functional_nature
+    from logic.dasa import get_vimshottari_dasa
+    from logic.nakshatra import get_nakshatra as _nak
+    from logic.calculate import get_planet_longitude as _gpl, get_lagnam as _lagnam
+    from logic.consts import Planet as _Planet
+    from logic.rasi import RASIS as _RASIS, get_rasi as _get_rasi
+    from logic.jaimini import get_chara_karakas
+
+    birth_dt_parsed = datetime.fromisoformat(birth_dt).astimezone(pytz.utc)
+    t = AstroTime(birth_dt_parsed, birth_lat, birth_lon)
+
+    moon_long = _gpl(_Planet.Moon, t)
+    moon_sign, moon_sign_num = _get_rasi(moon_long)
+    nak_name, nak_num, nak_pct, _ = _nak(moon_long)
+
+    lagna_long = _lagnam(t)
+    lagna_sign, lagna_sign_num = _get_rasi(lagna_long)
+
+    current_dt = datetime.now(pytz.utc)
+    maha, bhukti = get_vimshottari_dasa(nak_num, nak_pct, birth_dt_parsed, current_dt)
+
+    sav = get_sarvashtakavarga_points(t)
+    bav = get_all_bhinnashtakavarga(t)
+
+    return {
+        "name": name,
+        "lagna": {"sign": lagna_sign, "sign_num": lagna_sign_num},
+        "moon": {"sign": moon_sign, "sign_num": moon_sign_num,
+                 "nakshatra": nak_name, "nakshatra_num": nak_num},
+        "current_dasa": {"mahadasa": maha, "bhukti": bhukti},
+        "psychic_profile": get_psychic_profile(birth_dt_parsed, birth_lat, birth_lon),
+        "yoga_summary": _ysummary(t),
+        "ashtakavarga": {
+            "sarvashtakavarga": {_RASIS[i]: sav[i + 1] for i in range(12)},
+            "bhinnashtakavarga": bav,
+        },
+        "functional_nature": get_functional_nature(lagna_sign_num),
+        "shadbala_ratios": get_shadbala_ratios(birth_dt_parsed, birth_lat, birth_lon),
+        "jaimini_karakas": get_chara_karakas(t),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Daily prediction (simple — no Firestore, direct calculation)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_daily_prediction_for_date(
+    birth_dt: str,
+    birth_lat: float,
+    birth_lon: float,
+    prediction_date: Optional[str] = None,
+    timezone: str = "Asia/Kolkata",
+) -> dict:
+    """Daily astrological prediction (Mood / Fuel / Luck) for a given date.
+
+    Calculates the three main daily indicators:
+    1. **Mood** (Lagna Gochara) — Moon's house from natal Lagna
+    2. **Fuel** (Chandra Gochara) — Moon's house from natal Moon sign
+    3. **Luck** (Tarabala) — Nakshatra-to-nakshatra tara bala score
+
+    No database or cache — always computes fresh from the birth chart.
+
+    Args:
+        birth_dt:        Birth datetime ISO 8601
+        birth_lat:       Birth latitude
+        birth_lon:       Birth longitude
+        prediction_date: Date to predict for, YYYY-MM-DD (defaults to today)
+        timezone:        IANA timezone for the prediction date (e.g. "Asia/Kolkata")
+
+    Returns:
+        {"date": str, "mood": {...}, "fuel": {...}, "luck": {...},
+         "overall_score": float, "overall_quality": str}
+    """
+    from logic.daily_prediction import calculate_daily_prediction
+    from logic.calculate import get_planet_longitude as _gpl, get_lagnam as _lagnam
+    from logic.consts import Planet as _Planet
+    from logic.nakshatra import get_nakshatra as _nak
+    from logic.rasi import RASIS as _RASIS, get_rasi as _get_rasi
+
+    birth_dt_parsed = datetime.fromisoformat(birth_dt).astimezone(pytz.utc)
+    t = AstroTime(birth_dt_parsed, birth_lat, birth_lon)
+
+    moon_long = _gpl(_Planet.Moon, t)
+    _, nak_num, nak_pct, _ = _nak(moon_long)
+    lagna_long = _lagnam(t)
+    _, lagna_num = _get_rasi(lagna_long)
+
+    pred_date = prediction_date or datetime.now(pytz.utc).strftime("%Y-%m-%d")
+
+    return calculate_daily_prediction(
+        birth_datetime=birth_dt_parsed,
+        birth_lat=birth_lat,
+        birth_lon=birth_lon,
+        birth_lagna_num=lagna_num,
+        birth_nakshatra_num=nak_num,
+        birth_moon_longitude=moon_long,
+        prediction_date=pred_date,
+        timezone=timezone,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
