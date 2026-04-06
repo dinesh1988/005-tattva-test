@@ -21,7 +21,8 @@ from logic.rasi import get_rasi
 from logic.ashtakavarga import get_all_bhinnashtakavarga
 from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_schedule
 from logic.lordship import get_lord_of_house
-from logic.shadbala import get_all_planet_shadbala, get_bhava_bala
+from logic.shadbala import get_all_planet_shadbala, get_bhava_bala, get_drik_bala, get_sthana_bala
+from logic.aspects import is_planet_aspecting_planet, is_planet_aspecting_sign
 
 # ==================== TITHI CLASSIFICATIONS ====================
 
@@ -1233,6 +1234,95 @@ def is_bad_lunar_phase_for_building(tithi_num: int) -> bool:
 
 
 # =============================================================================
+# SIGN CLASSIFICATION HELPERS
+# =============================================================================
+
+# Vedic sign classifications (sign numbers 1-12)
+_FIXED_SIGNS    = frozenset({2, 5, 8, 11})   # Taurus, Leo, Scorpio, Aquarius
+_MOVABLE_SIGNS  = frozenset({1, 4, 7, 10})   # Aries, Cancer, Libra, Capricorn
+_COMMON_SIGNS   = frozenset({3, 6, 9, 12})   # Gemini, Virgo, Sagittarius, Pisces
+_WATER_SIGNS    = frozenset({4, 8, 12})       # Cancer, Scorpio, Pisces
+_BENEFIC_PLANETS = frozenset({Planet.Jupiter, Planet.Venus, Planet.Moon})  # natural benefics
+
+
+def _is_fixed_sign(sign_num: int) -> bool:
+    return sign_num in _FIXED_SIGNS
+
+
+def _is_movable_sign(sign_num: int) -> bool:
+    return sign_num in _MOVABLE_SIGNS
+
+
+def _is_common_sign(sign_num: int) -> bool:
+    return sign_num in _COMMON_SIGNS
+
+
+def _is_water_sign(sign_num: int) -> bool:
+    return sign_num in _WATER_SIGNS
+
+
+# Weekday lord mapping (Python weekday: Mon=0 ... Sun=6)
+_WEEKDAY_LORD = {
+    0: Planet.Moon,     # Monday
+    1: Planet.Mars,     # Tuesday
+    2: Planet.Mercury,  # Wednesday
+    3: Planet.Jupiter,  # Thursday
+    4: Planet.Venus,    # Friday
+    5: Planet.Saturn,   # Saturday
+    6: Planet.Sun,      # Sunday
+}
+
+
+def _lagna_lord_is_weekday_lord(python_weekday: int, time: "AstroTime") -> bool:
+    """True when the lord of the rising sign matches the lord of the current weekday."""
+    lagna_lord = get_lord_of_house(1, time)
+    weekday_lord = _WEEKDAY_LORD.get(python_weekday)
+    return lagna_lord == weekday_lord
+
+
+def _good_yoga_all_agriculture(tithi_num: int, python_weekday: int, time: "AstroTime") -> bool:
+    """Combined check for good yoga for all agriculture operations."""
+    # 1. Good lunar days: 1,2,3,4,5,7,11,13,15
+    norm = (tithi_num - 1) % 15 + 1
+    if norm not in {1, 2, 3, 4, 5, 7, 11, 13, 15}:
+        return False
+    # 2. Lagna lord == Weekday lord
+    if not _lagna_lord_is_weekday_lord(python_weekday, time):
+        return False
+    # 3. House 8 must be unoccupied
+    if get_planets_in_house(8, time):
+        return False
+    # 4. Lagna must NOT be Gemini(3) or Leo(5)
+    lagna_sign = get_lagna_sign_num(time)
+    if lagna_sign in (3, 5):
+        return False
+    return True
+
+
+def _get_yama_count(time: "AstroTime") -> int:
+    """Compute day-Yama number 1-5 (daytime divided into 5 equal parts)."""
+    import swisseph as _swe_yama
+    jd = time.julian_day
+    geopos = (time.lon, time.lat, 0)
+    rsmi_rise = _swe_yama.CALC_RISE | _swe_yama.BIT_DISC_CENTER
+    rsmi_set  = _swe_yama.CALC_SET  | _swe_yama.BIT_DISC_CENTER
+    jd_search = jd - 0.5  # search from ~12h before current time
+    try:
+        _, tret_rise = _swe_yama.rise_trans(jd_search, _swe_yama.SUN, rsmi_rise, geopos)
+        _, tret_set  = _swe_yama.rise_trans(jd_search, _swe_yama.SUN, rsmi_set,  geopos)
+    except Exception:
+        return 1
+    sunrise_jd = tret_rise[0]
+    sunset_jd  = tret_set[0]
+    day_dur    = sunset_jd - sunrise_jd
+    if day_dur <= 0:
+        return 1
+    yama_dur   = day_dur / 5.0
+    yama_num   = int((jd - sunrise_jd) / yama_dur) + 1
+    return max(1, min(5, yama_num))
+
+
+# =============================================================================
 # MASTER FUNCTION — Get All Electional Events
 # =============================================================================
 
@@ -1423,6 +1513,141 @@ def get_all_electional_events(
          f"Tithi {tithi_num} ({tithi_name}) is inauspicious for starting agricultural work.",
          f"Tithi {tithi_num} ({tithi_name}) is not contra-indicated for agricultural work.")
 
+    # ── [P10] Agriculture — good yoga helper events ───────────────────────────
+    _agri_good_yoga = _good_yoga_all_agriculture(tithi_num, python_weekday, time)
+    _lagna_sign = get_lagna_sign_num(time)
+
+    _add("GoodLunarDayAgriculture", "agriculture",
+         (tithi_num - 1) % 15 + 1 in {1, 2, 3, 4, 5, 7, 11, 13, 15},
+         f"Tithi {tithi_num} is auspicious for agricultural work.",
+         f"Tithi {tithi_num} is not among the favoured lunar days for agriculture.")
+
+    _add("LagnaLordIsWeekdayLord", "agriculture",
+         _lagna_lord_is_weekday_lord(python_weekday, time),
+         f"Lagna lord matches the weekday lord — auspicious for all activities.",
+         f"Lagna lord does not match the weekday lord.")
+
+    _add("BadForStartingAllAgriculture", "agriculture",
+         bool(get_planets_in_house(8, time)),
+         "House 8 is occupied — inauspicious for starting agricultural operations.",
+         "House 8 is unoccupied — no contra-indication from 8th house for agriculture.")
+
+    _add("BadLagnaForAllAgriculture", "agriculture",
+         _lagna_sign in (3, 5),
+         f"Lagna is {'Gemini' if _lagna_sign == 3 else 'Leo'} — barren sign, unfavourable for planting.",
+         f"Lagna sign {_lagna_sign} is not barren — no contra-indication from rising sign.")
+
+    _add("GoodYogaForAllAgriculture", "agriculture",
+         _agri_good_yoga,
+         "All four conditions for agricultural yoga satisfied (good tithi, lagna lord = weekday lord, 8th house empty, lagna not barren).",
+         "Agricultural yoga not fully satisfied (check tithi, lagna lord, 8th house, lagna sign).")
+
+    # ── [P10] Agriculture — specific planting events ──────────────────────────
+    # GoodAnySeedsSowing: good yoga + specific nakshatras
+    _SOWING_NAKS_CS = frozenset({13, 14, 15, 10, 8, 12, 21, 26, 4, 27, 1, 19, 17})
+    # Hasta(13), Chitra(14), Swati(15), Magha(10), Pushya(8), Uttara Phalguni(12),
+    # Uttara Ashadha(21), Uttara Bhadrapada(26), Rohini(4), Revati(27), Ashwini(1), Mula(19), Anuradha(17)
+    _add("GoodAnySeedsSowing", "agriculture",
+         _agri_good_yoga and nak_num in _SOWING_NAKS_CS,
+         f"Good yoga and Moon in nakshatra {nak_name} — auspicious for sowing any seeds.",
+         f"Conditions for seed sowing not fully met (yoga={_agri_good_yoga}, nak={nak_name}).")
+
+    _add("GoodForPlantingTrees", "agriculture",
+         _agri_good_yoga and nak_num == 4,  # Rohini
+         f"Good yoga and Moon in Rohini — auspicious for planting trees.",
+         f"Conditions for planting trees not met (yoga={_agri_good_yoga}, nak={nak_name}).")
+
+    _FLOWER_SEED_NAKS = frozenset({5, 7, 13, 14, 15, 17, 27})
+    # Mrigashira(5), Punarvasu(7), Hasta(13), Chitra(14), Swati(15), Anuradha(17), Revati(27)
+    _add("GoodForPlantingFlowerSeeds", "agriculture",
+         _agri_good_yoga and nak_num in _FLOWER_SEED_NAKS,
+         f"Good yoga and Moon in {nak_name} — auspicious for sowing flower seeds and fruit-bearing creepers.",
+         f"Conditions for planting flower seeds not met (yoga={_agri_good_yoga}, nak={nak_name}).")
+
+    _add("GoodForPlantingSugarcane", "agriculture",
+         _agri_good_yoga and nak_num == 7,  # Punarvasu
+         f"Good yoga and Moon in Punarvasu — auspicious for planting sugarcane.",
+         f"Conditions for planting sugarcane not met (yoga={_agri_good_yoga}, nak={nak_name}).")
+
+    # GoodForPlantingFruitTrees: Jupiter in Lagna on Thursday OR Sagittarius/Pisces rising on Thursday
+    _is_thursday = python_weekday == 3
+    _jup_in_lagna = Planet.Jupiter in get_planets_in_house(1, time)
+    _add("GoodForPlantingFruitTrees", "agriculture",
+         _agri_good_yoga and _is_thursday and (_jup_in_lagna or _lagna_sign in (9, 12)),
+         f"Good yoga, Thursday, and {'Jupiter in Lagna' if _jup_in_lagna else 'Sagittarius/Pisces rising'} — auspicious for planting fruit trees.",
+         f"Conditions for planting fruit trees not met.")
+
+    # GoodForPlantingFlowerTrees: Venus in Lagna on Friday
+    _is_friday = python_weekday == 4
+    _venus_in_lagna = Planet.Venus in get_planets_in_house(1, time)
+    _add("GoodForPlantingFlowerTrees", "agriculture",
+         _agri_good_yoga and _is_friday and _venus_in_lagna,
+         "Good yoga, Friday, Venus in Lagna — auspicious for planting flowering trees.",
+         f"Conditions for planting flower trees not met (yoga={_agri_good_yoga}, Fri={_is_friday}, Venus in Lagna={_venus_in_lagna}).")
+
+    # GoodForPlantingFlowers: Mars in Lagna on Tuesday
+    _is_tuesday = python_weekday == 1
+    _mars_in_lagna = Planet.Mars in get_planets_in_house(1, time)
+    _add("GoodForPlantingFlowers", "agriculture",
+         _agri_good_yoga and _is_tuesday and _mars_in_lagna,
+         "Good yoga, Tuesday, Mars in Lagna — auspicious for planting flowers.",
+         f"Conditions for planting flowers not met (yoga={_agri_good_yoga}, Tue={_is_tuesday}, Mars in Lagna={_mars_in_lagna}).")
+
+    _add("GoodForPlantingFlowerCuttings", "agriculture",
+         _agri_good_yoga and _lagna_sign in (2, 7),  # Taurus or Libra
+         f"Good yoga and {'Taurus' if _lagna_sign == 2 else 'Libra'} rising — auspicious for flower seeds and cuttings.",
+         f"Conditions for planting flower cuttings not met (yoga={_agri_good_yoga}, lagna={_lagna_sign}).")
+
+    _add("GoodForPlantingFloweringPlants", "agriculture",
+         _agri_good_yoga and _lagna_sign == 6,  # Virgo
+         "Good yoga and Virgo rising — auspicious for planting flowering plants.",
+         f"Conditions for planting flowering plants not met (yoga={_agri_good_yoga}, lagna={_lagna_sign}).")
+
+    _add("GoodForPlantingGarlic", "agriculture",
+         _agri_good_yoga and _lagna_sign == 1,  # Aries
+         "Good yoga and Aries rising — auspicious for planting garlic.",
+         f"Conditions for planting garlic not met (yoga={_agri_good_yoga}, lagna={_lagna_sign}).")
+
+    _add("GoodForPlantingPeachAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 2,  # Taurus
+         "Good yoga and Taurus rising — auspicious for planting peach, plum, potatoes, radishes, onion sets and turnips.",
+         f"Conditions for planting peach and similar crops not met.")
+
+    _add("GoodForPlantingTomatoesAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 4,  # Cancer
+         "Good yoga and Cancer rising — auspicious for planting beans, cabbage, corn, cucumber, lettuce, melons, pumpkins, tomatoes.",
+         f"Conditions for planting tomatoes and similar crops not met.")
+
+    _add("GoodForPlantingGrains", "agriculture",
+         _agri_good_yoga and _lagna_sign == 7,  # Libra
+         "Good yoga and Libra rising — auspicious for planting wheat, rye, barley, rice and other field crops.",
+         f"Conditions for planting grains not met.")
+
+    _add("GoodForPlantingOnionAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 8,  # Scorpio
+         "Good yoga and Scorpio rising — auspicious for planting garlic and onion seeds.",
+         f"Conditions for planting onion and similar crops not met.")
+
+    _add("GoodForPlantingPepperAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 9,  # Sagittarius
+         "Good yoga and Sagittarius rising — auspicious for planting pepper and other spring crops.",
+         f"Conditions for planting pepper and similar crops not met.")
+
+    _add("GoodForPlantingPotatoAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 10,  # Capricorn
+         "Good yoga and Capricorn rising — auspicious for planting potato, radishes and turnips.",
+         f"Conditions for planting potato and similar crops not met.")
+
+    _add("GoodForPlantingGrainsAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 11,  # Aquarius
+         "Good yoga and Aquarius rising — auspicious for planting all black cereals and grains.",
+         f"Conditions for planting black cereals not met.")
+
+    _add("GoodForPlantingPumpkinsAndOthers", "agriculture",
+         _agri_good_yoga and _lagna_sign == 12,  # Pisces
+         "Good yoga and Pisces rising — auspicious for planting cucumbers, pumpkins, radishes, water-melons and carrots.",
+         f"Conditions for planting pumpkins and similar crops not met.")
+
     # ── Building ──────────────────────────────────────────────────────────────
     _add("GoodLunarDayForBuilding", "building",
          is_good_lunar_day_for_building(tithi_num),
@@ -1443,6 +1668,49 @@ def get_all_electional_events(
          is_bad_lunar_phase_for_building(tithi_num),
          f"Tithi {tithi_num} (near full/new moon or Chaturdashi) is unfavourable for construction.",
          f"Tithi {tithi_num} is not a bad lunar phase for construction.")
+
+    # ── [P10] Building — additional events ───────────────────────────────────
+    # BadLunarMonthForBuilding: Sun in Gemini(3), Cancer(4), Virgo(6), Libra(7),
+    #   Sagittarius(9), Capricorn(10), Pisces(12) → months Jyeshtha, Ashadha,
+    #   Bhadrapada, Aswayuja, Margasira, Pushya, Phalguna
+    _build_sun_long = get_planet_longitude(Planet.Sun, time)
+    _, _sun_sign = get_rasi(_build_sun_long)
+    _BAD_BUILD_MONTHS = frozenset({3, 4, 6, 7, 9, 10, 12})
+    _add("BadLunarMonthForBuilding", "building",
+         _sun_sign in _BAD_BUILD_MONTHS,
+         f"Sun in sign {_sun_sign} indicates an inauspicious lunar month for house-building (Jyeshtha/Ashadha/Bhadrapada/Aswayuja/Margasira/Pushya/Phalguna).",
+         f"Sun is in sign {_sun_sign} — not a contra-indicated month for construction.")
+
+    _add("GoodSunSignForBuilding", "building",
+         _is_fixed_sign(_sun_sign) or _is_movable_sign(_sun_sign),
+         f"Sun in {'fixed' if _is_fixed_sign(_sun_sign) else 'movable'} sign ({_sun_sign}) — auspicious for building work.",
+         f"Sun is in sign {_sun_sign} — not in a fixed or movable sign.")
+
+    _add("BadSunSignForBuilding", "building",
+         _is_common_sign(_sun_sign),
+         f"Sun in common/mutable sign ({_sun_sign}) — no building work should be undertaken.",
+         f"Sun is in sign {_sun_sign} — not a common sign, no contra-indication.")
+
+    _add("BadWeekdayForRepairs", "building",
+         python_weekday == 1,  # Tuesday
+         f"Tuesday — do not commence repairs on this day.",
+         f"{wd} is not Tuesday — no contra-indication for repairs.")
+
+    # GoodYogaForRepairs: Friday + Lagna Taurus(2) or Libra(7), OR Monday + Lagna Cancer(4)
+    _is_monday = python_weekday == 0
+    _add("GoodYogaForRepairs", "building",
+         (_is_friday and _lagna_sign in (2, 7)) or (_is_monday and _lagna_sign == 4),
+         f"{'Friday with ' + ('Taurus' if _lagna_sign == 2 else 'Libra') + ' Lagna' if _is_friday else 'Monday with Cancer Lagna'} — very suitable for beginning repairs.",
+         f"Conditions for good repair yoga not met ({wd}, lagna sign {_lagna_sign}).")
+
+    # GoodYogaForRepairs2: benefic in Lagna AND Moon in aquatic (water) sign
+    _benefics_in_lagna = [p for p in get_planets_in_house(1, time) if p in _BENEFIC_PLANETS]
+    _moon_long_b = get_planet_longitude(Planet.Moon, time)
+    _, _moon_sign_b = get_rasi(_moon_long_b)
+    _add("GoodYogaForRepairs2", "building",
+         bool(_benefics_in_lagna) or _is_water_sign(_moon_sign_b),
+         f"{'Benefic planet (' + ', '.join(str(p) for p in _benefics_in_lagna) + ') in Lagna' if _benefics_in_lagna else 'Moon in water sign ' + str(_moon_sign_b)} — favourable for repairs.",
+         f"Neither benefic in Lagna nor Moon in aquatic sign.")
 
     # ── Tarabala (only when birth nakshatra is provided) ─────────────────────
     if birth_nakshatra_num is not None:
@@ -1465,6 +1733,29 @@ def get_all_electional_events(
              tara_num in bad_taras,
              base_desc + " Unfavourable Tarabala — use caution.",
              base_desc + " Tarabala is not in an unfavourable Tara.")
+
+        # ── [P10] 27 Tarabala sub-types: 9 names × 3 cycle strengths ────────
+        _TARA_DEFS = [
+            ("Janma",       1, "birth — generally inauspicious"),
+            ("Sampat",      2, "wealth — auspicious"),
+            ("Vipat",       3, "danger — inauspicious"),
+            ("Kshema",      4, "prosperity — auspicious"),
+            ("Pratyak",     5, "obstacle — inauspicious"),
+            ("Sadhana",     6, "achievement — auspicious"),
+            ("Naidhana",    7, "death — highly inauspicious"),
+            ("Mitra",       8, "friend — auspicious"),
+            ("ParamaMitra", 9, "best friend — highly auspicious"),
+        ]
+        _CYCLE_LABELS = {1: "Strong", 2: "Middling", 3: "Weak"}
+        for _tn, _ti, _tdesc in _TARA_DEFS:
+            for _cn, _clabel in _CYCLE_LABELS.items():
+                _add(
+                    f"Tarabala{_tn}{_clabel}",
+                    "tarabala",
+                    tara_num == _ti and cycle == _cn,
+                    f"Tarabala is {_tn} ({_tdesc}) in {_clabel} cycle.",
+                    f"Tarabala is not {_tn} {_clabel} cycle.",
+                )
 
     # ── [P9] Ashtakavarga Gochara Bindu ──────────────────────────────────────
     # 63 events: 7 planets × 9 bindu levels (0–8).
@@ -1665,6 +1956,112 @@ def get_all_electional_events(
             f"House {_hs_num} is the strongest house by Bhava Bala at this moment.",
             f"House {_hs_num} is not the strongest house (strongest: House {_strongest_house}).",
         )
+
+    # ── [P10] Commerce / Buying and Selling ───────────────────────────────────
+    _moon_long_c  = get_planet_longitude(Planet.Moon, time)
+    _merc_long_c  = get_planet_longitude(Planet.Mercury, time)
+    _, _moon_sign_c = get_rasi(_moon_long_c)
+    _, _merc_sign_c = get_rasi(_merc_long_c)
+
+    # Conjunction helper (same sign)
+    def _conjunct(sign_a: int, sign_b: int) -> bool:
+        return sign_a == sign_b
+
+    # GoodWeekdayForSelling: Mon/Wed/Thu
+    _add("GoodWeekdayForSelling", "commerce",
+         python_weekday in (0, 2, 3),
+         f"{wd} (Monday/Wednesday/Thursday) is the best weekday for selling.",
+         f"{wd} is not the best weekday for selling.")
+
+    # GoodMoonSignForSelling: Moon in Taurus(2), Cancer(4), Pisces(12)
+    _add("GoodMoonSignForSelling", "commerce",
+         _moon_sign_c in (2, 4, 12),
+         f"Moon in sign {_moon_sign_c} (Taurus/Cancer/Pisces) — favourable for the seller.",
+         f"Moon is in sign {_moon_sign_c} — not in Taurus, Cancer, or Pisces.")
+
+    # GoodSellingForProfit: Moon&Mercury free from Mars aspect/conjunction + Moon in
+    #   Taurus/Cancer/Pisces + Mercury in kendra(1,4,7,10) OR Jupiter aspects Mercury
+    #   + weekday Mon/Wed/Thu/Sat
+    _mars_asp_moon = is_planet_aspecting_planet(Planet.Mars, Planet.Moon, time)
+    _mars_asp_merc = is_planet_aspecting_planet(Planet.Mars, Planet.Mercury, time)
+    _, _mars_sign_c = get_rasi(get_planet_longitude(Planet.Mars, time))
+    _mars_conj_moon = _conjunct(_mars_sign_c, _moon_sign_c)
+    _mars_conj_merc = _conjunct(_mars_sign_c, _merc_sign_c)
+    _merc_in_kendra = get_planet_house(Planet.Mercury, time) in (1, 4, 7, 10)
+    _jup_asp_merc   = is_planet_aspecting_planet(Planet.Jupiter, Planet.Mercury, time)
+    _add("GoodSellingForProfit", "commerce",
+         (not _mars_asp_moon) and (not _mars_asp_merc) and
+         (not _mars_conj_moon) and (not _mars_conj_merc) and
+         _moon_sign_c in (2, 4, 12) and
+         (_merc_in_kendra or _jup_asp_merc) and
+         python_weekday in (0, 2, 3, 5),
+         "All conditions for selling for profit are met (Moon/Mercury free from Mars, Moon in good sign, Mercury strong, weekday auspicious).",
+         "Conditions for selling for profit are not fully met.")
+
+    # BadForBuyingToolsUtensilsJewellery: Nak Aslesha(9)/Mula(19)/Jyeshtha(18) AND tithi 8/9/1
+    _bad_buy_nak  = nak_num in (9, 19, 18)
+    _bad_buy_tithi = (tithi_num - 1) % 15 + 1 in (8, 9, 1)
+    _bad_buy_yoga = _bad_buy_nak and _bad_buy_tithi
+    _add("BadForBuyingToolsUtensilsJewellery", "commerce",
+         _bad_buy_yoga,
+         f"Nakshatra {nak_name} (Aslesha/Mula/Jyeshtha) and tithi {tithi_num} (8th/9th/New Moon) — avoid buying tools, utensils, or jewellery.",
+         f"Nakshatra and tithi are not both inauspicious for buying tools and utensils.")
+
+    # Good buying events: NOT bad yoga AND Jupiter aspects the relevant target
+    _jup_asp_moon = is_planet_aspecting_planet(Planet.Jupiter, Planet.Moon, time)
+    _jup_asp_mars = is_planet_aspecting_planet(Planet.Jupiter, Planet.Mars, time)
+    _jup_asp_sat  = is_planet_aspecting_planet(Planet.Jupiter, Planet.Saturn, time)
+    _jup_asp_h1   = is_planet_aspecting_sign(Planet.Jupiter, get_lagna_sign_num(time), time)
+
+    _add("GoodForBuyingBrassVessels", "commerce",
+         not _bad_buy_yoga and _jup_asp_moon,
+         "Jupiter aspects Moon and no inauspicious yoga — auspicious for buying brass vessels.",
+         "Conditions for buying brass vessels not met.")
+
+    _add("GoodForBuyingCopperVessels", "commerce",
+         not _bad_buy_yoga and _jup_asp_mars,
+         "Jupiter aspects Mars and no inauspicious yoga — auspicious for buying copper vessels.",
+         "Conditions for buying copper vessels not met.")
+
+    _add("GoodForBuyingSteelIronVessels", "commerce",
+         not _bad_buy_yoga and _jup_asp_sat,
+         "Jupiter aspects Saturn and no inauspicious yoga — auspicious for buying steel and iron vessels.",
+         "Conditions for buying steel/iron vessels not met.")
+
+    _add("GoodForBuyingSilverVessels", "commerce",
+         not _bad_buy_yoga and _jup_asp_h1,
+         "Jupiter aspects Lagna and no inauspicious yoga — auspicious for buying silver vessels.",
+         "Conditions for buying silver vessels not met.")
+
+    # GoodForBuyingJewellery: NOT bad yoga AND Sun & Moon well-situated (drik bala > 0 + sthana bala above neutral)
+    try:
+        from logic.shadbala import get_drik_bala as _get_drik_bala, get_sthana_bala as _get_sthana_bala
+        _sb_jd = time.julian_day
+        _sun_drik  = _get_drik_bala("Sun",  _sb_jd)
+        _moon_drik = _get_drik_bala("Moon", _sb_jd)
+        _sun_stha  = _get_sthana_bala("Sun",  _sb_jd, time.lat, time.lon)["total"]
+        _moon_stha = _get_sthana_bala("Moon", _sb_jd, time.lat, time.lon)["total"]
+        # Neutral sthana bala points — Sun ~165, Moon ~133 (approximate thresholds)
+        _JWL_OK = (
+            not _bad_buy_yoga and
+            _sun_drik > 0 and _moon_drik > 0 and
+            _sun_stha > 100 and _moon_stha > 100
+        )
+    except Exception:
+        _JWL_OK = False
+    _add("GoodForBuyingJewellery", "commerce",
+         _JWL_OK,
+         "Sun and Moon are well-situated and well-aspected — auspicious for buying jewellery.",
+         "Conditions for buying jewellery not fully met.")
+
+    # ── [P10] Yama Time-slot Events ───────────────────────────────────────────
+    # Day divided into 5 equal parts (yamas) from sunrise to sunset.
+    _yama = _get_yama_count(time)
+    for _yn in range(1, 6):
+        _add(f"Yama{_yn}", "astronomy",
+             _yama == _yn,
+             f"Currently in Yama {_yn} of the day (daytime divided into 5 equal parts).",
+             f"Not currently in Yama {_yn} (current Yama is {_yama}).")
 
     return events
 
