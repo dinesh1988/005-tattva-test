@@ -2474,7 +2474,7 @@ def get_dasa_full(
     moon_long = get_planet_longitude(Planet.Moon, at)
     nak_name, nak_num, nak_pct, _ = get_nakshatra(moon_long)
 
-    result = _get_dasa_full(nak_num, nak_pct, birth_dt, eval_dt)
+    result = _get_dasa_full(nak_num, nak_pct, birth_dt.replace(tzinfo=None), eval_dt)
     return {
         "birth_date": birth_date,
         "current_date": eval_dt.strftime("%Y-%m-%d"),

@@ -3476,7 +3476,7 @@ async def get_dasa_full(birth_data: BirthData, current_date: Optional[str] = Non
     moon_long = get_planet_longitude(Planet.Moon, at)
     nak_name, nak_num, nak_pct, _ = get_nakshatra(moon_long)
 
-    result = get_vimshottari_dasa_full(nak_num, nak_pct, birth_dt, current_dt)
+    result = get_vimshottari_dasa_full(nak_num, nak_pct, birth_dt.replace(tzinfo=None), current_dt)
     return {
         "birth_date": birth_data.birth_date,
         "current_date": current_dt.strftime("%Y-%m-%d"),
