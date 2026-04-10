@@ -2061,8 +2061,8 @@ async def get_dasa_periods(birth_data: BirthData, current_date: Optional[str] = 
     moon_long = get_planet_longitude(Planet.Moon, astro_time)
     moon_nakshatra, moon_nak_num, moon_nak_pct, moon_pada = get_nakshatra(moon_long)
     
-    # Calculate Dasa
-    maha_dasa, bhukti = get_vimshottari_dasa(moon_nak_num, moon_nak_pct, birth_dt, current_dt)
+    # Calculate Dasa (strip tzinfo — get_vimshottari_dasa requires naive datetimes)
+    maha_dasa, bhukti = get_vimshottari_dasa(moon_nak_num, moon_nak_pct, birth_dt.replace(tzinfo=None), current_dt)
     
     return {
         "birth_date": birth_data.birth_date,
