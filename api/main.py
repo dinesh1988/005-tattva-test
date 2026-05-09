@@ -20,7 +20,9 @@ APP_VERSION = os.getenv("VERSION", API_VERSION_DEFAULT)
 BUILD_ID = os.getenv("BUILD_ID")
 ENVIRONMENT = os.getenv("ENVIRONMENT")
 
-from fastapi import FastAPI, HTTPException, Depends
+import httpx
+import pytz
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -492,6 +494,59 @@ async def lookup_location(city: str):
         timezone=location['timezone'],
         country=location.get('country')
     )
+
+
+@app.get("/api/v1/datetime", tags=["Utilities"])
+async def get_current_datetime_endpoint(
+    request: Request,
+    timezone: Optional[str] = None,
+):
+    """
+    Return current date, time, weekday, and UTC offset.
+
+    - If `timezone` is provided (IANA name, e.g. `Asia/Kolkata`), uses it directly.
+    - Otherwise attempts to detect the caller's timezone via IP geolocation
+      (using the `X-Forwarded-For` header when behind a proxy / Cloud Run).
+    - Falls back to UTC if detection fails.
+    """
+    tz_name = timezone
+    detection_method = "provided"
+
+    if not tz_name:
+        # Resolve real client IP (Cloud Run sets X-Forwarded-For)
+        forwarded = request.headers.get("x-forwarded-for")
+        client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+
+        if client_ip and client_ip not in ("127.0.0.1", "::1"):
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(f"http://ip-api.com/json/{client_ip}?fields=timezone,status")
+                    data = resp.json()
+                    if data.get("status") == "success" and data.get("timezone"):
+                        tz_name = data["timezone"]
+                        detection_method = "ip_geolocation"
+            except Exception:
+                pass  # Fall through to UTC
+
+    if not tz_name:
+        tz_name = "UTC"
+        detection_method = "fallback_utc"
+
+    try:
+        tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        raise HTTPException(status_code=400, detail=f"Unknown timezone: '{tz_name}'")
+
+    now = datetime.now(tz)
+    return {
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
+        "datetime_iso": now.isoformat(),
+        "weekday": now.strftime("%A"),
+        "timezone": tz_name,
+        "utc_offset_hours": now.utcoffset().total_seconds() / 3600,
+        "detection_method": detection_method,
+    }
 
 
 @app.post("/api/v1/profile/generate", response_model=PsychicProfileResponse, tags=["Psychic Profile"])

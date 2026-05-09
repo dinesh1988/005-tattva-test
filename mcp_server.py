@@ -127,26 +127,48 @@ def lookup_location(city: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def get_current_datetime(timezone: Optional[str] = None) -> dict:
+def get_current_datetime(timezone: Optional[str] = None, client_ip: Optional[str] = None) -> dict:
     """
     Return the current date, time, weekday, and UTC offset.
 
     Args:
         timezone: Optional IANA timezone name (e.g. "Asia/Kolkata", "America/New_York").
-                  Defaults to UTC when not provided.
+                  If omitted, the tool attempts IP-based geolocation using client_ip.
+        client_ip: Optional IP address of the user for automatic timezone detection.
+                   Pass this when the MCP client knows the user's IP.
 
     Returns:
-        dict with date, time, datetime_iso, weekday, timezone, utc_offset_hours.
+        dict with date, time, datetime_iso, weekday, timezone, utc_offset_hours, detection_method.
     """
-    tz = pytz.timezone(timezone) if timezone else pytz.utc
+    import httpx as _httpx
+
+    tz_name = timezone
+    detection_method = "provided"
+
+    if not tz_name and client_ip and client_ip not in ("127.0.0.1", "::1"):
+        try:
+            resp = _httpx.get(f"http://ip-api.com/json/{client_ip}?fields=timezone,status", timeout=3.0)
+            data = resp.json()
+            if data.get("status") == "success" and data.get("timezone"):
+                tz_name = data["timezone"]
+                detection_method = "ip_geolocation"
+        except Exception:
+            pass
+
+    if not tz_name:
+        tz_name = "UTC"
+        detection_method = "fallback_utc"
+
+    tz = pytz.timezone(tz_name)
     now = datetime.now(tz)
     return {
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S"),
         "datetime_iso": now.isoformat(),
         "weekday": now.strftime("%A"),
-        "timezone": str(tz),
+        "timezone": tz_name,
         "utc_offset_hours": now.utcoffset().total_seconds() / 3600,
+        "detection_method": detection_method,
     }
 
 
