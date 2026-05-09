@@ -987,10 +987,14 @@
             <div id="tab-chat" class="tab-panel" style="display:none">
                 <div class="result-section" style="border-left-color: #667eea; margin-top: 0;">
                     <h3>🤖 AI Astrology Chat</h3>
-                    <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
-                        Ask any Vedic astrology question. Load a birth profile from the <strong>Birth Profile</strong> tab for personalized chart insights, or chat freely about any topic.
-                    </p>
-                    <!-- API Key Setup -->
+
+                    <!-- Chat Mode Toggle -->
+                    <div style="display: flex; gap: 4px; margin-bottom: 15px; background: #f0f0f0; border-radius: 8px; padding: 4px;">
+                        <button id="chat_mode_btn_single" onclick="setChatMode('single')" style="flex: 1; padding: 7px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, #667eea, #764ba2); color: white; transition: all 0.2s;">💬 Single Profile</button>
+                        <button id="chat_mode_btn_multi" onclick="setChatMode('multi')" style="flex: 1; padding: 7px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #666; transition: all 0.2s;">👥 Multi Profile</button>
+                    </div>
+
+                    <!-- API Key Setup (shared between modes) -->
                     <div id="ai_key_panel" style="background: #f8f9fa; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
                         <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 15px; cursor: pointer; user-select: none;" onclick="toggleAiKeySetup()">
                             <span style="font-size: 12px; font-weight: 600; color: #555;">🔑 API Key Setup</span>
@@ -1020,15 +1024,62 @@
                         <div style="font-size: 12px; color: #999;" class="key-hint">Key is stored in memory only, never sent anywhere except the chosen endpoint.</div>
                         </div>
                     </div>
-                    <!-- Chat window -->
-                    <div id="ai_chat_messages" style="height: clamp(300px, 55vh, 600px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="color: #999; font-size: 13px; text-align: center; margin: auto;">Ask any astrology question, or load a birth profile from the Birth Profile tab for personalized insights.</div>
+
+                    <!-- ── Single Profile Chat ─────────────────────────────── -->
+                    <div id="chat_single_area">
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                            Ask any Vedic astrology question. Load a birth profile from the <strong>Birth Profile</strong> tab for personalized chart insights, or chat freely about any topic.
+                        </p>
+                        <!-- Chat window -->
+                        <div id="ai_chat_messages" style="height: clamp(300px, 50vh, 560px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
+                            <div style="color: #999; font-size: 13px; text-align: center; margin: auto;">Ask any astrology question, or load a birth profile from the Birth Profile tab for personalized insights.</div>
+                        </div>
+                        <!-- Input -->
+                        <div style="display: flex; gap: 8px; align-items: stretch;">
+                            <input type="text" id="ai_chat_input" placeholder="Ask about career, relationships, health, timing..." style="font-size: 14px; flex: 1; min-width: 0;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendAiChat();}">
+                            <button onclick="sendAiChat()" style="width: 42px; height: 42px; padding: 0; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;" id="ai_send_btn" title="Send">➤</button>
+                        </div>
                     </div>
-                    <!-- Input -->
-                    <div style="display: flex; gap: 8px; align-items: stretch;">
-                        <input type="text" id="ai_chat_input" placeholder="Ask about career, relationships, health, timing..." style="font-size: 14px; flex: 1; min-width: 0;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendAiChat();}">
-                        <button onclick="sendAiChat()" style="width: 42px; height: 42px; padding: 0; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;" id="ai_send_btn" title="Send">➤</button>
+
+                    <!-- ── Multi Profile Chat ──────────────────────────────── -->
+                    <div id="chat_multi_area" style="display:none">
+                        <p style="color: #666; font-size: 14px; margin-bottom: 12px;">
+                            Load multiple saved birth profiles and ask questions about any of them together — ideal for compatibility, family, or group readings.
+                        </p>
+
+                        <!-- Add profile picker -->
+                        <div style="background: #e8f5e9; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                            <strong style="font-size: 13px; color: #2e7d32;">➕ Add Profile to Chat</strong>
+                            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center;">
+                                <select id="multi_profile_picker" style="flex: 1; min-width: 150px; padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
+                                    <option value="">-- Select a saved profile --</option>
+                                </select>
+                                <button onclick="addToMultiChat()" style="padding: 6px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Add</button>
+                            </div>
+                            <p style="font-size: 12px; color: #888; margin: 6px 0 0;">Profiles are saved in the Birth Profile tab. You can add as many as needed.</p>
+                        </div>
+
+                        <!-- Loaded profiles pills -->
+                        <div id="multi_profiles_list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 34px; align-items: center;">
+                            <span id="multi_empty_hint" style="font-size: 12px; color: #bbb;">No profiles loaded yet.</span>
+                        </div>
+
+                        <!-- Clear chat -->
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                            <button onclick="clearMultiChat()" style="padding: 4px 12px; font-size: 12px; background: #ff7043; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">🗑️ Clear Chat</button>
+                        </div>
+
+                        <!-- Multi chat window -->
+                        <div id="ai_multi_chat_messages" style="height: clamp(280px, 45vh, 520px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
+                            <div id="ai_multi_empty_msg" style="color: #999; font-size: 13px; text-align: center; margin: auto;">Add profiles above, then ask about any of them.</div>
+                        </div>
+                        <!-- Input -->
+                        <div style="display: flex; gap: 8px; align-items: stretch;">
+                            <input type="text" id="ai_multi_chat_input" placeholder="Ask about Person 1, Person 2, or compare them..." style="font-size: 14px; flex: 1; min-width: 0;" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMultiAiChat();}">
+                            <button onclick="sendMultiAiChat()" style="width: 42px; height: 42px; padding: 0; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;" id="ai_multi_send_btn" title="Send">➤</button>
+                        </div>
                     </div>
+
                 </div>
             </div><!-- /tab-chat -->
         </div><!-- /.content -->
@@ -1164,17 +1215,56 @@
         };
 
         const TattvaM = {
-            lookupLocation:        (city) => callMcpTool('lookup_location',        { city }),
-            getPlanetPositions:    (args)  => callMcpTool('get_planet_positions',   args),
-            getPanchang:           (args)  => callMcpTool('get_panchang',            args),
-            getDasa:               (args)  => callMcpTool('get_dasa',               args),
-            getVargas:             (args)  => callMcpTool('get_vargas',             args),
-            generatePsychicProfile:(args)  => callMcpTool('generate_psychic_profile', args),
-            getNumerology:         (args)  => callMcpTool('get_numerology',         args),
-            analyzeNameNumerology: (args)  => callMcpTool('analyze_name_numerology', args),
-            calculateTaraBala:     (args)  => callMcpTool('calculate_tara_bala',    args),
-            listNakshatras:        ()      => callMcpTool('list_nakshatras',        {}),
-            dailyFiveStep:         (args)  => callMcpTool('daily_five_step',        args),
+            lookupLocation:             (city) => callMcpTool('lookup_location',                      { city }),
+            getPlanetPositions:         (args)  => callMcpTool('get_planet_positions',               args),
+            getPanchang:                (args)  => callMcpTool('get_panchang',                       args),
+            getDasa:                    (args)  => callMcpTool('get_dasa',                           args),
+            getVargas:                  (args)  => callMcpTool('get_vargas',                         args),
+            generatePsychicProfile:     (args)  => callMcpTool('generate_psychic_profile',           args),
+            getNumerology:              (args)  => callMcpTool('get_numerology',                     args),
+            analyzeNameNumerology:      (args)  => callMcpTool('analyze_name_numerology',            args),
+            calculateTaraBala:          (args)  => callMcpTool('calculate_tara_bala',                args),
+            listNakshatras:             ()      => callMcpTool('list_nakshatras',                    {}),
+            dailyFiveStep:              (args)  => callMcpTool('daily_five_step',                    args),
+            getCurrentDatetime:         (args)  => callMcpTool('get_current_datetime',               args || {}),
+            getShadbala:                (args)  => callMcpTool('get_shadbala',                       args),
+            getBirthYogas:              (args)  => callMcpTool('get_birth_yogas',                    args),
+            getPlanetAvastha:           (args)  => callMcpTool('get_planet_avastha',                 args),
+            getJaimini:                 (args)  => callMcpTool('get_jaimini',                        args),
+            getVarshaphal:              (args)  => callMcpTool('get_varshaphal',                     args),
+            getHouseLords:              (args)  => callMcpTool('get_house_lords',                    args),
+            getPlanetRelationships:     (args)  => callMcpTool('get_planet_relationships',           args),
+            getPlanetAspects:           (args)  => callMcpTool('get_planet_aspects',                 args),
+            getChartDignities:          (args)  => callMcpTool('get_chart_dignities',                args),
+            getHousePositions:          (args)  => callMcpTool('get_house_positions',                args),
+            getMuhurtha:                (args)  => callMcpTool('get_muhurtha',                       args),
+            getKakshya:                 (args)  => callMcpTool('get_kakshya',                        args),
+            getPanchaPakshi:            (args)  => callMcpTool('get_pancha_pakshi_analysis',         args),
+            getWealthYogas:             (args)  => callMcpTool('get_wealth_yogas',                   args),
+            getGocharaPanchang:         (args)  => callMcpTool('get_gochara_panchang',               args),
+            getSignalStrengths:         ()      => callMcpTool('get_signal_strengths',               {}),
+            getSuperpowers:             ()      => callMcpTool('get_superpowers',                    {}),
+            getAshtakavarga:            (args)  => callMcpTool('get_ashtakavarga',                   args),
+            getFunctionalNature:        (args)  => callMcpTool('get_functional_nature',              args),
+            getVedha:                   (args)  => callMcpTool('get_vedha',                          args),
+            kundaliCompatibility:       (args)  => callMcpTool('kundali_compatibility',              args),
+            getPlanetInHouse:           (args)  => callMcpTool('get_planet_in_house_interpretations',args),
+            getPlanetInSign:            (args)  => callMcpTool('get_planet_in_sign_interpretations', args),
+            getHouseLordInHouse:        (args)  => callMcpTool('get_house_lord_in_house_interpretations', args),
+            getRisingSignInterpretation:(args)  => callMcpTool('get_rising_sign_interpretation',     args),
+            getDasaPeriodInterpretation:(args)  => callMcpTool('get_dasa_period_interpretation',     args),
+            getMuhurthaChandrabala:     (args)  => callMcpTool('get_muhurtha_chandrabala',           args),
+            getMuhurthaPanchaka:        (args)  => callMcpTool('get_muhurtha_panchaka',              args),
+            getMuhurthaGhataka:         (args)  => callMcpTool('get_muhurtha_ghataka',               args),
+            getPersonalGochara:         (args)  => callMcpTool('get_personal_gochara_predictions',  args),
+            getYogaSummary:             (args)  => callMcpTool('get_yoga_summary',                   args),
+            getCompleteAstroProfile:    (args)  => callMcpTool('get_complete_astro_profile',         args),
+            getDailyPrediction:         (args)  => callMcpTool('get_daily_prediction_for_date',      args),
+            getDasaFull:                (args)  => callMcpTool('get_dasa_full',                      args),
+            getBhavaChalit:             (args)  => callMcpTool('get_bhava_chalit',                   args),
+            getBirthVarna:              (args)  => callMcpTool('get_birth_varna',                    args),
+            getMarakaPlanets:           (args)  => callMcpTool('get_maraka_planets',                 args),
+            getUpagrahas:               (args)  => callMcpTool('get_upagrahas',                      args),
         };
 
         const AI_TOOLS = [
@@ -1234,20 +1324,311 @@
                 parameters: { type: 'object', properties: {
                     birth_date: { type: 'string' }, birth_time: { type: 'string' }, birth_place: { type: 'string' }, current_place: { type: 'string' }
                 }, required: ['birth_date', 'birth_time', 'birth_place', 'current_place'] } } },
+            // ── Newly added tools ─────────────────────────────────────────────
+            { type: 'function', function: { name: 'mcp_get_current_datetime',
+                description: 'Get current date and time, auto-detecting timezone from client IP when not provided.',
+                parameters: { type: 'object', properties: {
+                    timezone: { type: 'string', description: 'IANA timezone e.g. Asia/Kolkata (optional)' },
+                    client_ip: { type: 'string', description: 'Client IP for auto timezone detection (optional)' }
+                }, required: [] } } },
+            { type: 'function', function: { name: 'mcp_get_complete_astro_profile',
+                description: 'Complete astrological profile bundle (Lagna, Moon, Dasa, Yogas, Ashtakavarga, Functional Nature, Shadbala, Jaimini). Best first call before any deep interpretation.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:  { type: 'string', description: 'Birth datetime ISO 8601 e.g. "1988-06-07T20:40:00+05:30"' },
+                    birth_lat: { type: 'number', description: 'Birth latitude' },
+                    birth_lon: { type: 'number', description: 'Birth longitude' },
+                    name:      { type: 'string', description: 'Person name (optional)' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_birth_yogas',
+                description: 'Identify 44 classical Vedic birth yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, wealth yogas, etc.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' },
+                    only_occurring: { type: 'boolean', description: 'Return only active yogas' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_yoga_summary',
+                description: 'Concise count-based yoga summary: total, active, benefic/malefic/mixed, by category.',
+                parameters: { type: 'object', properties: {
+                    birth_dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat: { type: 'number' }, birth_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_shadbala',
+                description: 'Shadbala (six-fold planetary strength): Sthana, Dig, Kaala, Cheshta, Naisargika, Drik balas with ratios.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' },
+                    planet: { type: 'string', description: 'Optional: Sun/Moon/Mars/Mercury/Jupiter/Venus/Saturn' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_avastha',
+                description: 'Planetary Avastha (5 state types): Bala, Jagradadi, Deeptadi, Lajjitadi, Shayanadi states.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' },
+                    planet: { type: 'string', description: 'Optional planet name' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_dasa_full',
+                description: 'Complete 7-level Vimshottari Dasa: Maha→Bhukti→Pratyantara→Sookshma→Prana→AviPrana→Viprana.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' },
+                    current_date: { type: 'string', description: 'Evaluation date YYYY-MM-DD (optional)' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_bhava_chalit',
+                description: 'Bhava Chalit (Sripati) house cusps and planet redistribution — may differ from D1 houses.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_birth_varna',
+                description: 'Birth Varna (caste/class archetype) based on Moon sign — one of the 8 Ashta-Koota factors.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_maraka_planets',
+                description: 'Maraka (death-inflicting) planets — lords of houses 2 and 7 from Lagna.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_upagrahas',
+                description: 'Upagraha (shadow planet) positions: Gulika and Mandi longitude, sign, and degree.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_get_functional_nature',
+                description: 'Functional benefic/malefic classification of planets for this ascendant. Identifies Yogakaraka planets.',
+                parameters: { type: 'object', properties: {
+                    dt:  { type: 'string', description: 'Birth datetime ISO 8601 e.g. "1988-06-07T20:40:00"' },
+                    lat: { type: 'number', description: 'Birth latitude' },
+                    lon: { type: 'number', description: 'Birth longitude' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_ashtakavarga',
+                description: 'Ashtakavarga: Sarvashtakavarga (total benefic points per sign) and Bhinnashtakavarga (per planet).',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_house_positions',
+                description: 'Whole-sign house positions for all planets, or one specific planet.',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' },
+                    planet: { type: 'string', description: 'Optional: Sun/Moon/Mars/Mercury/Jupiter/Venus/Saturn/Rahu/Ketu' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_house_lords',
+                description: 'House lordship: lord and sign for all 12 houses, or which houses a specific planet rules.',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' },
+                    planet: { type: 'string', description: 'Optional planet name' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_relationships',
+                description: 'Full 9×9 combined (natural + temporary) planet relationship grid.',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_aspects',
+                description: 'Graha Drishti (planetary aspects). Special: Saturn→3/10, Jupiter→5/9, Mars→4/8, all→7th.',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' },
+                    planet: { type: 'string', description: 'Optional: filter to one planet' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_chart_dignities',
+                description: 'Planetary dignities: exaltation, debilitation, own sign, Moolatrikona, friendly/enemy sign.',
+                parameters: { type: 'object', properties: {
+                    dt: { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_jaimini',
+                description: 'Jaimini astrology: Chara Karakas, Chara Dasa, and Arudha Padas.',
+                parameters: { type: 'object', properties: {
+                    dt:         { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat:        { type: 'number' }, lon: { type: 'number' },
+                    query:      { type: 'string', description: '"karakas", "chara_dasa", "arudhas", or "all" (default)' },
+                    current_dt: { type: 'string', description: 'Current datetime ISO 8601 for Chara Dasa (optional)' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_varshaphal',
+                description: 'Varshaphal (annual/solar return horoscope): Muntha, Year Lord, key Sahams.',
+                parameters: { type: 'object', properties: {
+                    dt:   { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat:  { type: 'number' }, lon: { type: 'number' },
+                    year: { type: 'integer', description: 'Target Varsha year (0 = current year)' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_kakshya',
+                description: 'Kakshya (KP sub-lord) divisions for all 9 planets — fine-tunes transit predictions.',
+                parameters: { type: 'object', properties: {
+                    dt:  { type: 'string', description: 'Birth/transit datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_pancha_pakshi',
+                description: 'Pancha Pakshi (Five Bird System): birth bird, activity at query time, favorable periods.',
+                parameters: { type: 'object', properties: {
+                    dt:       { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat:      { type: 'number' }, lon: { type: 'number' },
+                    query_dt: { type: 'string', description: 'Query datetime ISO 8601 (optional, defaults to now)' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_wealth_yogas',
+                description: 'Three classical wealth yogas: Chatussagara, Vasumathi, Parvata — strength and occurrence.',
+                parameters: { type: 'object', properties: {
+                    dt:  { type: 'string', description: 'Birth datetime ISO 8601' },
+                    lat: { type: 'number' }, lon: { type: 'number' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_gochara_panchang',
+                description: 'Daily sky state: current planetary positions, Panchang, Hora table, Choghadiya, Tara Bala.',
+                parameters: { type: 'object', properties: {
+                    dt:              { type: 'string', description: 'Datetime ISO 8601' },
+                    lat:             { type: 'number' }, lon: { type: 'number' },
+                    natal_nakshatra: { type: 'string', description: 'Natal Moon nakshatra for Tara Bala (optional)' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_vedha',
+                description: 'Gochara Vedha (transit obstruction): checks if beneficial transit planets are blocked by Vedha.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:    { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat:   { type: 'number' }, birth_lon: { type: 'number' },
+                    transit_dt:  { type: 'string', description: 'Transit datetime ISO 8601 (optional, defaults to now)' },
+                    transit_lat: { type: 'number' }, transit_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_personal_gochara',
+                description: 'Personal Gochara predictions for all 9 planets vs natal Moon: house, nature, life-area (Mind/Studies/Family/Money/Love/Body).',
+                parameters: { type: 'object', properties: {
+                    birth_dt:    { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat:   { type: 'number' }, birth_lon: { type: 'number' },
+                    transit_dt:  { type: 'string', description: 'Transit datetime (optional)' },
+                    transit_lat: { type: 'number' }, transit_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_kundali_compatibility',
+                description: 'Ashtakuta Kundali matching: 8 kuta scores up to 36 points, Ghataka, Mangal Dosha.',
+                parameters: { type: 'object', properties: {
+                    person1_dt:  { type: 'string', description: 'Person 1 birth datetime ISO 8601' },
+                    person1_lat: { type: 'number' }, person1_lon: { type: 'number' },
+                    person2_dt:  { type: 'string', description: 'Person 2 birth datetime ISO 8601' },
+                    person2_lat: { type: 'number' }, person2_lon: { type: 'number' }
+                }, required: ['person1_dt', 'person1_lat', 'person1_lon', 'person2_dt', 'person2_lat', 'person2_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_in_house',
+                description: 'Planet-in-house interpretations: traditional Vedic text for every planet in its natal house.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:  { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat: { type: 'number' }, birth_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_planet_in_sign',
+                description: 'Planet-in-sign interpretations: traditional Vedic text for each planet in its natal zodiac sign.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:  { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat: { type: 'number' }, birth_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_house_lord_in_house',
+                description: 'House lord placement interpretations: each house lord in the house it occupies.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:  { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat: { type: 'number' }, birth_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_rising_sign_interpretation',
+                description: 'Rising sign (Lagna) interpretation: temperament, appearance, health tendencies, life-path themes.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:  { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat: { type: 'number' }, birth_lon: { type: 'number' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_dasa_period_interpretation',
+                description: 'Vimshottari Dasa period interpretation. level=PD1 (Maha Dasa), PD2 (Bhukti), PD3 (Pratyantara).',
+                parameters: { type: 'object', properties: {
+                    level:  { type: 'string', description: '"PD1", "PD2", or "PD3"' },
+                    param1: { type: 'string', description: 'Planet name (all levels)' },
+                    param2: { type: 'string', description: 'Sign name (PD1) or bhukti/antar lord name (PD2/PD3)' }
+                }, required: ['level', 'param1', 'param2'] } } },
+            { type: 'function', function: { name: 'mcp_get_muhurtha',
+                description: 'Muhurtha (electional astrology): Chandrabala, Panchaka Dosha, and Ghataka Chakra checks.',
+                parameters: { type: 'object', properties: {
+                    dt:              { type: 'string', description: 'Transit datetime ISO 8601' },
+                    lat:             { type: 'number' }, lon: { type: 'number' },
+                    birth_moon_sign: { type: 'integer', description: 'Natal Moon sign 1–12 (required for Chandrabala/Ghataka)' },
+                    query:           { type: 'string', description: '"chandrabala", "panchaka", "ghataka", or "all"' }
+                }, required: ['dt', 'lat', 'lon'] } } },
+            { type: 'function', function: { name: 'mcp_get_daily_prediction',
+                description: 'Daily prediction (Mood/Fuel/Luck) for a given date: Moon-from-Lagna, Moon-from-Moon, Tarabala.',
+                parameters: { type: 'object', properties: {
+                    birth_dt:        { type: 'string', description: 'Birth datetime ISO 8601' },
+                    birth_lat:       { type: 'number' }, birth_lon: { type: 'number' },
+                    prediction_date: { type: 'string', description: 'Date YYYY-MM-DD (optional, defaults to today)' },
+                    timezone:        { type: 'string', description: 'IANA timezone e.g. "Asia/Kolkata"' }
+                }, required: ['birth_dt', 'birth_lat', 'birth_lon'] } } },
+            { type: 'function', function: { name: 'mcp_generate_psychic_profile',
+                description: 'Generate Psychic Profile: Moon Element→Channel, Nakshatra→Superpower, Ketu House→Signal Strength.',
+                parameters: { type: 'object', properties: {
+                    birth_date: { type: 'string', description: 'YYYY-MM-DD' }, birth_time: { type: 'string', description: 'HH:MM' },
+                    birth_place: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' }, timezone: { type: 'string' }
+                }, required: ['birth_date', 'birth_time'] } } },
+            { type: 'function', function: { name: 'mcp_analyze_name_numerology',
+                description: 'Numerological analysis of a name: Pythagorean and Chaldean name number with interpretation.',
+                parameters: { type: 'object', properties: {
+                    name: { type: 'string', description: 'Name to analyze' }
+                }, required: ['name'] } } },
+            { type: 'function', function: { name: 'mcp_list_nakshatras',
+                description: 'Reference data: all 27 nakshatras with number, name, deity, symbol, and quality.',
+                parameters: { type: 'object', properties: {}, required: [] } } },
+            { type: 'function', function: { name: 'mcp_get_signal_strengths',
+                description: 'Reference data: all 12 Ketu house signal strength profiles used in psychic profiling.',
+                parameters: { type: 'object', properties: {}, required: [] } } },
+            { type: 'function', function: { name: 'mcp_get_superpowers',
+                description: 'Reference data: all 27 nakshatra-based superpower profiles used in psychic profiling.',
+                parameters: { type: 'object', properties: {}, required: [] } } },
         ];
 
         async function dispatchAiToolCall(name, args) {
             switch (name) {
-                case 'mcp_lookup_location':      return TattvaM.lookupLocation(args.city);
-                case 'mcp_daily_five_step':      return TattvaM.dailyFiveStep(args);
-                case 'mcp_get_panchang':         return TattvaM.getPanchang(args);
-                case 'mcp_get_planet_positions': return TattvaM.getPlanetPositions(args);
-                case 'mcp_get_dasa':             return TattvaM.getDasa(args);
-                case 'mcp_get_numerology':       return TattvaM.getNumerology(args);
-                case 'mcp_get_vargas':           return TattvaM.getVargas(args);
-                case 'mcp_calculate_tara_bala':  return TattvaM.calculateTaraBala(args);
-                case 'rest_get_panchang':        return TattvaRest.getPanchang(args);
-                case 'rest_get_daily_five_step': return TattvaRest.getDailyFiveStep(args);
+                case 'mcp_lookup_location':               return TattvaM.lookupLocation(args.city);
+                case 'mcp_daily_five_step':               return TattvaM.dailyFiveStep(args);
+                case 'mcp_get_panchang':                  return TattvaM.getPanchang(args);
+                case 'mcp_get_planet_positions':          return TattvaM.getPlanetPositions(args);
+                case 'mcp_get_dasa':                      return TattvaM.getDasa(args);
+                case 'mcp_get_numerology':                return TattvaM.getNumerology(args);
+                case 'mcp_get_vargas':                    return TattvaM.getVargas(args);
+                case 'mcp_calculate_tara_bala':           return TattvaM.calculateTaraBala(args);
+                case 'rest_get_panchang':                 return TattvaRest.getPanchang(args);
+                case 'rest_get_daily_five_step':          return TattvaRest.getDailyFiveStep(args);
+                // ── New tools ──────────────────────────────────────────────
+                case 'mcp_get_current_datetime':          return TattvaM.getCurrentDatetime(args);
+                case 'mcp_get_complete_astro_profile':    return TattvaM.getCompleteAstroProfile(args);
+                case 'mcp_get_birth_yogas':               return TattvaM.getBirthYogas(args);
+                case 'mcp_get_yoga_summary':              return TattvaM.getYogaSummary(args);
+                case 'mcp_get_shadbala':                  return TattvaM.getShadbala(args);
+                case 'mcp_get_planet_avastha':            return TattvaM.getPlanetAvastha(args);
+                case 'mcp_get_dasa_full':                 return TattvaM.getDasaFull(args);
+                case 'mcp_get_bhava_chalit':              return TattvaM.getBhavaChalit(args);
+                case 'mcp_get_birth_varna':               return TattvaM.getBirthVarna(args);
+                case 'mcp_get_maraka_planets':            return TattvaM.getMarakaPlanets(args);
+                case 'mcp_get_upagrahas':                 return TattvaM.getUpagrahas(args);
+                case 'mcp_get_functional_nature':         return TattvaM.getFunctionalNature(args);
+                case 'mcp_get_ashtakavarga':              return TattvaM.getAshtakavarga(args);
+                case 'mcp_get_house_positions':           return TattvaM.getHousePositions(args);
+                case 'mcp_get_house_lords':               return TattvaM.getHouseLords(args);
+                case 'mcp_get_planet_relationships':      return TattvaM.getPlanetRelationships(args);
+                case 'mcp_get_planet_aspects':            return TattvaM.getPlanetAspects(args);
+                case 'mcp_get_chart_dignities':           return TattvaM.getChartDignities(args);
+                case 'mcp_get_jaimini':                   return TattvaM.getJaimini(args);
+                case 'mcp_get_varshaphal':                return TattvaM.getVarshaphal(args);
+                case 'mcp_get_kakshya':                   return TattvaM.getKakshya(args);
+                case 'mcp_get_pancha_pakshi':             return TattvaM.getPanchaPakshi(args);
+                case 'mcp_get_wealth_yogas':              return TattvaM.getWealthYogas(args);
+                case 'mcp_get_gochara_panchang':          return TattvaM.getGocharaPanchang(args);
+                case 'mcp_get_vedha':                     return TattvaM.getVedha(args);
+                case 'mcp_get_personal_gochara':          return TattvaM.getPersonalGochara(args);
+                case 'mcp_kundali_compatibility':         return TattvaM.kundaliCompatibility(args);
+                case 'mcp_get_planet_in_house':           return TattvaM.getPlanetInHouse(args);
+                case 'mcp_get_planet_in_sign':            return TattvaM.getPlanetInSign(args);
+                case 'mcp_get_house_lord_in_house':       return TattvaM.getHouseLordInHouse(args);
+                case 'mcp_get_rising_sign_interpretation':return TattvaM.getRisingSignInterpretation(args);
+                case 'mcp_get_dasa_period_interpretation':return TattvaM.getDasaPeriodInterpretation(args);
+                case 'mcp_get_muhurtha':                  return TattvaM.getMuhurtha(args);
+                case 'mcp_get_daily_prediction':          return TattvaM.getDailyPrediction(args);
+                case 'mcp_generate_psychic_profile':      return TattvaM.generatePsychicProfile(args);
+                case 'mcp_analyze_name_numerology':       return TattvaM.analyzeNameNumerology(args);
+                case 'mcp_list_nakshatras':               return TattvaM.listNakshatras();
+                case 'mcp_get_signal_strengths':          return TattvaM.getSignalStrengths();
+                case 'mcp_get_superpowers':               return TattvaM.getSuperpowers();
                 default: throw new Error(`Unknown tool: ${name}`);
             }
         }
@@ -1269,6 +1650,271 @@
 
         let _aiProfileContext = null;
         let _aiChatHistory = [];
+
+        // ── Multi-Profile Chat state ──────────────────────────────────────────
+        let _multiProfiles = []; // [{_key, name, birth_date, birth_time, birth_place}]
+        let _multiChatHistory = [];
+        let _chatMode = 'single';
+
+        function setChatMode(mode) {
+            _chatMode = mode;
+            const isSingle = mode === 'single';
+            document.getElementById('chat_single_area').style.display = isSingle ? '' : 'none';
+            document.getElementById('chat_multi_area').style.display = isSingle ? 'none' : '';
+            const btnSingle = document.getElementById('chat_mode_btn_single');
+            const btnMulti  = document.getElementById('chat_mode_btn_multi');
+            if (isSingle) {
+                btnSingle.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+                btnSingle.style.color = 'white';
+                btnMulti.style.background  = 'transparent';
+                btnMulti.style.color = '#666';
+            } else {
+                btnMulti.style.background  = 'linear-gradient(135deg, #667eea, #764ba2)';
+                btnMulti.style.color = 'white';
+                btnSingle.style.background = 'transparent';
+                btnSingle.style.color = '#666';
+                refreshMultiProfilePicker();
+            }
+        }
+
+        function refreshMultiProfilePicker() {
+            const picker = document.getElementById('multi_profile_picker');
+            if (!picker) return;
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            picker.innerHTML = '<option value="">-- Select a saved profile --</option>';
+            Object.keys(profiles).forEach(key => {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = `${key}: ${profiles[key].name}`;
+                picker.appendChild(opt);
+            });
+        }
+
+        function addToMultiChat() {
+            const picker = document.getElementById('multi_profile_picker');
+            const key = picker.value;
+            if (!key) { alert('Please select a profile to add.'); return; }
+            if (_multiProfiles.some(x => x._key === key)) { alert(`"${key}" is already in the chat.`); return; }
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            const p = profiles[key];
+            if (!p) { alert('Profile not found in storage.'); return; }
+            _multiProfiles.push({ _key: key, name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place });
+            refreshMultiProfilePills();
+            clearMultiChatMessages();
+            picker.value = '';
+        }
+
+        function removeFromMultiChat(index) {
+            _multiProfiles.splice(index, 1);
+            refreshMultiProfilePills();
+            clearMultiChatMessages();
+        }
+
+        function refreshMultiProfilePills() {
+            const container = document.getElementById('multi_profiles_list');
+            const hint = document.getElementById('multi_empty_hint');
+            Array.from(container.querySelectorAll('.multi-profile-pill')).forEach(el => el.remove());
+            if (_multiProfiles.length === 0) {
+                hint.style.display = '';
+            } else {
+                hint.style.display = 'none';
+                _multiProfiles.forEach((p, i) => {
+                    const pill = document.createElement('div');
+                    pill.className = 'multi-profile-pill';
+                    pill.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 20px; padding: 5px 12px; font-size: 13px; font-weight: 600;';
+                    pill.innerHTML = `Person ${i + 1}: ${p.name} <span onclick="removeFromMultiChat(${i})" style="cursor:pointer; font-size:15px; line-height:1; margin-left:2px; opacity:0.85;" title="Remove">✕</span>`;
+                    container.appendChild(pill);
+                });
+            }
+        }
+
+        function clearMultiChatMessages() {
+            _multiChatHistory = [];
+            const msgs = document.getElementById('ai_multi_chat_messages');
+            msgs.innerHTML = '';
+            const hint = document.createElement('div');
+            hint.id = 'ai_multi_empty_msg';
+            hint.style.cssText = 'color: #999; font-size: 13px; text-align: center; margin: auto;';
+            hint.textContent = _multiProfiles.length > 0
+                ? `${_multiProfiles.length} profile${_multiProfiles.length > 1 ? 's' : ''} loaded. Ask anything about them.`
+                : 'Add profiles above, then ask about any of them.';
+            msgs.appendChild(hint);
+        }
+
+        function clearMultiChat() { clearMultiChatMessages(); }
+
+        function appendMultiAiMessage(role, text) {
+            const msgs = document.getElementById('ai_multi_chat_messages');
+            const emptyHint = document.getElementById('ai_multi_empty_msg');
+            if (emptyHint) emptyHint.remove();
+            const div = document.createElement('div');
+            const isUser = role === 'user';
+            div.style.cssText = `max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; word-break: break-word;
+                ${isUser ? 'align-self: flex-end; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-bottom-right-radius: 3px; white-space: pre-wrap;'
+                         : 'align-self: flex-start; background: white; border: 1px solid #e0e0e0; color: #333; border-bottom-left-radius: 3px;'}`;
+            if (isUser) {
+                div.textContent = text;
+            } else {
+                div.innerHTML = (typeof marked !== 'undefined')
+                    ? marked.parse(text, { breaks: true, gfm: true })
+                    : text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+            }
+            msgs.appendChild(div);
+            msgs.scrollTop = msgs.scrollHeight;
+            return div;
+        }
+
+        function updateMultiAiMessage(div, text) {
+            if (!div) return;
+            div.innerHTML = (typeof marked !== 'undefined')
+                ? marked.parse(text, { breaks: true, gfm: true })
+                : text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+        }
+
+        async function sendMultiAiChat() {
+            if (_multiProfiles.length === 0) { alert('Please add at least one profile first.'); return; }
+            const input = document.getElementById('ai_multi_chat_input');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const apiKey = document.getElementById('ai_api_key').value.trim();
+            if (!apiKey) { alert('Enter your API key in the API Key Setup section first.'); return; }
+
+            input.value = '';
+            appendMultiAiMessage('user', question);
+
+            const sendBtn = document.getElementById('ai_multi_send_btn');
+            sendBtn.disabled = true;
+            const thinkingDiv = appendMultiAiMessage('assistant', '⏳ Thinking...');
+
+            _multiChatHistory.push({ role: 'user', content: question });
+
+            const profilesText = _multiProfiles.map((p, i) =>
+                `Person ${i + 1} — ${p.name}, born ${p.birth_date} at ${p.birth_time}, place: ${p.birth_place}`
+            ).join('\n');
+
+            const MULTI_TOOL_GUIDE = `
+## AVAILABLE TOOLS (49 total — same as single profile mode)
+Key tools for multi-person sessions:
+- mcp_get_complete_astro_profile — Full chart bundle for one person (call separately for each)
+- mcp_get_current_datetime — Always call before timing predictions
+- mcp_lookup_location — Resolve any city to lat/lon/timezone
+- mcp_kundali_compatibility — Ashtakuta matching between two people (36-point score + Mangal Dosha)
+- mcp_get_personal_gochara — Transit predictions for a specific person vs their natal Moon
+- mcp_get_dasa — Active Vimshottari Dasa for any person
+- mcp_get_birth_yogas — Classical yoga analysis for any person
+- mcp_get_shadbala — Planetary strength comparison between charts
+- mcp_get_daily_prediction — Mood/Fuel/Luck score for any person for any date
+- mcp_get_varshaphal — Annual horoscope for any person
+- mcp_generate_psychic_profile — Psychic archetype: Moon channel, nakshatra superpower, Ketu signal
+- mcp_get_numerology — Life path and destiny numbers
+
+## MULTI-PERSON WORKFLOW
+| User asks about | Recommended approach |
+|---|---|
+| Compatibility / relationship | mcp_kundali_compatibility (needs both birth ISO datetimes + lat/lon) |
+| Compare charts | mcp_get_complete_astro_profile for each person separately |
+| Who has stronger X | mcp_get_shadbala for each person, then compare |
+| Synastry / timing together | mcp_get_dasa + mcp_get_personal_gochara for each |
+| Family group reading | mcp_get_complete_astro_profile per person, then synthesise |
+
+## TOOL CALL GUIDANCE
+- When the user says 'Person 1' or refers to a name, use THAT person's birth_date, birth_time, birth_place.
+- birth_dt format for ISO tools: convert 'YYYY-MM-DD' + 'HH:MM' + place timezone to 'YYYY-MM-DDTHH:MM:00+HH:MM' — use mcp_lookup_location to get the timezone offset.
+- For compatibility, you need both persons' ISO datetimes and coordinates — call mcp_lookup_location for each if coordinates are not known.`;
+
+            const systemPrompt = `You are Tattva, a master Vedic astrologer with 49 live API tools. Multiple birth profiles are loaded for this session. Analyse any or all of them individually or together.
+
+## CORE INSTRUCTIONS
+- Always identify which person the user is asking about. Match by name or 'Person N' label.
+- Never mix up birth data between people — always use the correct person's birth details when calling tools.
+- Always call mcp_get_current_datetime before any timing-based prediction.
+- Use mcp_lookup_location if you need lat/lon/timezone for a birth place.
+- For compatibility questions, always use mcp_kundali_compatibility.
+- Keep answers concise unless the user requests detail.
+
+${MULTI_TOOL_GUIDE}
+
+## LOADED PROFILES
+${profilesText}`;
+
+            const endpointSel = document.getElementById('ai_endpoint');
+            const isAzure = endpointSel.value === 'azure';
+            const endpoint = endpointSel.selectedOptions[0].dataset.url;
+            const model = document.getElementById('ai_model').value;
+
+            const headers = { 'Content-Type': 'application/json' };
+            if (isAzure) { headers['api-key'] = apiKey; }
+            else { headers['Authorization'] = `Bearer ${apiKey}`; }
+
+            let messages = [
+                { role: 'system', content: systemPrompt },
+                ..._multiChatHistory
+            ];
+
+            const useTools = document.getElementById('ai_use_tools')?.checked;
+
+            try {
+                for (let round = 0; round < 5; round++) {
+                    const baseBody = { messages, max_tokens: 1000, temperature: 0.7 };
+                    if (useTools) { baseBody.tools = AI_TOOLS; baseBody.tool_choice = 'auto'; }
+                    const body = isAzure ? baseBody : { ...baseBody, model };
+
+                    const resp = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+                    if (!resp.ok) {
+                        const err = await resp.json().catch(() => ({}));
+                        throw new Error(err.error?.message || `HTTP ${resp.status}`);
+                    }
+
+                    const data = await resp.json();
+                    const assistantMsg = data.choices?.[0]?.message;
+                    if (!assistantMsg) throw new Error('No message in response');
+
+                    if (assistantMsg.tool_calls && assistantMsg.tool_calls.length > 0) {
+                        messages.push(assistantMsg);
+                        const toolNames = assistantMsg.tool_calls
+                            .map(tc => tc.function.name.replace(/^(mcp|rest)_/, '').replace(/_/g, ' '))
+                            .join(', ');
+                        thinkingDiv.textContent = `🔧 Calling: ${toolNames}…`;
+
+                        const settled = await Promise.allSettled(
+                            assistantMsg.tool_calls.map(async (tc) => {
+                                const args = JSON.parse(tc.function.arguments);
+                                const result = await dispatchAiToolCall(tc.function.name, args);
+                                return { id: tc.id, result };
+                            })
+                        );
+
+                        for (let i = 0; i < settled.length; i++) {
+                            const tc = assistantMsg.tool_calls[i];
+                            const s = settled[i];
+                            const content = s.status === 'fulfilled'
+                                ? JSON.stringify(s.value)
+                                : JSON.stringify({ error: s.reason?.message || 'Tool call failed' });
+                            messages.push({ role: 'tool', tool_call_id: tc.id, content });
+                        }
+
+                        thinkingDiv.textContent = '⏳ Processing results…';
+                        continue;
+                    }
+
+                    const reply = assistantMsg.content || 'No response received.';
+                    _multiChatHistory.push({ role: 'assistant', content: reply });
+                    updateMultiAiMessage(thinkingDiv, reply);
+                    return;
+                }
+                throw new Error('Exceeded maximum tool-call rounds');
+            } catch (e) {
+                updateMultiAiMessage(thinkingDiv, `❌ Error: ${e.message}`);
+                thinkingDiv.style.background = '#ffebee';
+                thinkingDiv.style.borderColor = '#f44336';
+                _multiChatHistory.pop();
+            } finally {
+                sendBtn.disabled = false;
+                input.focus();
+            }
+        }
+        // ── End Multi-Profile Chat ────────────────────────────────────────────
 
         function setAiProfileContext(profileResult) {
             // Compact the profile to stay within token limits
@@ -1346,9 +1992,108 @@
 
             _aiChatHistory.push({ role: 'user', content: question });
 
+            const TOOL_GUIDE = `
+## AVAILABLE TOOLS (49 total)
+
+### ALWAYS START HERE
+- mcp_get_complete_astro_profile — Full chart bundle in one call: Lagna, Moon, all planets, active Dasa, Yogas, Ashtakavarga, Shadbala, Functional Nature, Jaimini overview. Call this FIRST before any deep analysis.
+- mcp_get_current_datetime — Get today's actual date/time. ALWAYS call this before any timing prediction; never guess the date.
+- mcp_lookup_location — Resolve any city name to lat, lon, timezone. Call before any tool that needs coordinates.
+
+### PLANETS & CHART STRUCTURE
+- mcp_get_planet_positions — Sign, nakshatra, degree, longitude for all 9 planets
+- mcp_get_house_positions — Which house each planet occupies (whole-sign)
+- mcp_get_house_lords — Which planet rules each of the 12 houses
+- mcp_get_chart_dignities — Exaltation, debilitation, own sign, Moolatrikona status
+- mcp_get_bhava_chalit — Sripati cusps; planets sometimes shift houses here — important for house significations
+- mcp_get_planet_aspects — Graha Drishti: Saturn→3rd/10th, Jupiter→5th/9th, Mars→4th/8th, all planets→7th
+- mcp_get_planet_relationships — Natural + temporary combined relationship grid (9×9)
+- mcp_get_functional_nature — Benefic/malefic/yogakaraka classification per ascendant
+
+### YOGAS & PLANETARY STRENGTH
+- mcp_get_birth_yogas — 44 classical yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, Neecha Bhanga, etc.
+- mcp_get_yoga_summary — Quick count: total/active/benefic/malefic/mixed yogas by category
+- mcp_get_wealth_yogas — Chatussagara, Vasumathi, Parvata yoga strength
+- mcp_get_shadbala — Six-fold strength: Sthana, Dig, Kaala, Cheshta, Naisargika, Drik balas with ratios
+- mcp_get_planet_avastha — 5 avastha types: Bala age-states, Jagradadi consciousness, Deeptadi dignity, Lajjitadi relational, Shayanadi positional
+- mcp_get_ashtakavarga — Sarvashtakavarga total + Bhinnashtakavarga per planet (strength per sign)
+- mcp_get_maraka_planets — Lords of houses 2 & 7 (death-inflicting planets, relevant for longevity questions)
+- mcp_get_upagrahas — Gulika and Mandi shadow planet positions
+- mcp_get_birth_varna — Moon-sign Varna (one of 8 Ashta-Koota factors)
+
+### DASAS & TIMING
+- mcp_get_dasa — Vimshottari dasa schedule with currently active Mahadasa and Bhukti
+- mcp_get_dasa_full — Full 7-level dasa: Maha→Bhukti→Pratyantara→Sookshma→Prana→AviPrana→Viprana
+- mcp_get_dasa_period_interpretation — Classical text reading for PD1 (Maha), PD2 (Bhukti), PD3 (Pratyantara)
+- mcp_get_varshaphal — Solar return / annual horoscope: Muntha, Year Lord, key Sahams
+- mcp_get_kakshya — KP sub-lord divisions for precision transit timing
+- mcp_get_pancha_pakshi — Five Bird System: birth bird type + favorable/unfavorable activity windows now
+
+### TRANSITS & DAILY PREDICTIONS
+- mcp_get_gochara_panchang — Live sky: current planetary positions, Panchang, Hora table, Choghadiya, Tara Bala
+- mcp_get_personal_gochara — All 9 planets transiting vs natal Moon: house from Moon, nature (good/bad), life-area tags (Mind/Studies/Family/Money/Love/Body)
+- mcp_get_vedha — Check if a seemingly good transit is obstructed by Vedha (obstruction planet)
+- mcp_get_daily_prediction — Mood/Fuel/Luck score for any given date based on Moon from Lagna/Moon + Tara Bala
+- mcp_daily_five_step / rest_get_daily_five_step — Full 5-step daily timing: Vara lord, Tara Bala, Moon gochara, BAV, Vedha
+- mcp_get_panchang / rest_get_panchang — Tithi, Nakshatra, Yoga, Vara, Karana for any date/location
+
+### TEXTUAL INTERPRETATIONS
+- mcp_get_planet_in_house — Classical Vedic text for each planet in its natal house
+- mcp_get_planet_in_sign — Classical Vedic text for each planet in its natal zodiac sign
+- mcp_get_house_lord_in_house — House lord placement interpretations (e.g. 1st lord in 7th house)
+- mcp_get_rising_sign_interpretation — Lagna/ascendant: temperament, appearance, health tendencies, life-path themes
+
+### ADVANCED SYSTEMS
+- mcp_get_jaimini — Jaimini: Chara Karakas (AK/AmK/BK etc.), Chara Dasa, Arudha Padas (AL, A7, A10)
+- mcp_get_muhurtha — Electional astrology: Chandrabala, Panchaka Dosha, Ghataka Chakra checks for an event time
+- mcp_kundali_compatibility — Ashtakuta Kundali matching: 8 kuta scores up to 36 points + Mangal Dosha check
+
+### NUMEROLOGY & PSYCHIC PROFILE
+- mcp_get_numerology — Life path, destiny, soul urge, personal year numbers
+- mcp_analyze_name_numerology — Pythagorean + Chaldean analysis of a name
+- mcp_generate_psychic_profile — Moon element→channel, nakshatra→superpower, Ketu house→signal strength
+
+### REFERENCE DATA (no birth data needed)
+- mcp_list_nakshatras — All 27 nakshatras: deity, symbol, quality, ruling planet
+- mcp_get_signal_strengths — 12 Ketu house signal strength profiles
+- mcp_get_superpowers — 27 nakshatra-based superpower profiles
+
+## QUESTION → TOOL WORKFLOW
+| User asks about | Recommended tool chain |
+|---|---|
+| Overview / general reading | mcp_get_complete_astro_profile → mcp_get_birth_yogas |
+| Current life period / timing | mcp_get_current_datetime → mcp_get_dasa → mcp_get_personal_gochara |
+| Career / success potential | mcp_get_complete_astro_profile → mcp_get_shadbala → mcp_get_planet_in_house |
+| Relationships / marriage | mcp_get_house_lords (7th) → mcp_get_planet_in_house → mcp_get_chart_dignities |
+| Wealth / finance | mcp_get_wealth_yogas → mcp_get_birth_yogas → mcp_get_shadbala |
+| Daily timing / muhurtha | mcp_get_current_datetime → mcp_daily_five_step → mcp_get_vedha |
+| Compatibility | mcp_kundali_compatibility |
+| Spiritual / psychic nature | mcp_generate_psychic_profile → mcp_get_jaimini |
+| Annual forecast | mcp_get_current_datetime → mcp_get_varshaphal → mcp_get_dasa_period_interpretation |`;
+
             const systemPrompt = _aiProfileContext
-                ? `You are an expert Vedic astrologer with access to live API tools. You can call tools to fetch current panchang, live planetary positions, daily timing predictions, or look up locations. Answer questions about the person below based on their birth chart. Be specific, reference actual planets/yogas/dasas from the data. Keep answers concise unless more detail is requested.\n\nBIRTH CHART DATA:\n${_aiProfileContext}`
-                : `You are an expert Vedic astrologer and spiritual advisor. Answer questions about Vedic astrology, birth charts, planets, dasas, yogas, nakshatras, and related topics. Be helpful, specific, and accurate. Keep answers concise unless more detail is requested.`;
+                ? `You are Tattva, a master Vedic astrologer powered by a live astrology API with 49 specialised tools. Your role is to give precise, insightful, and actionable Vedic astrology readings.
+
+## CORE INSTRUCTIONS
+- Always reference actual chart data: specific planets, signs, houses, yogas, and dasa lords — never speak in generalities.
+- The birth chart context below is pre-loaded. Use it directly for basic questions; call tools only for data not already present or for live/transit information.
+- Keep answers concise and focused unless the user asks for detail.
+- Always call mcp_get_current_datetime before giving any timing-based prediction — never assume today's date.
+- When a question involves a location not in the profile, call mcp_lookup_location to get coordinates.
+
+${TOOL_GUIDE}
+
+## LOADED BIRTH CHART
+${_aiProfileContext}`
+                : `You are Tattva, a master Vedic astrologer powered by a live astrology API with 49 specialised tools. You can answer questions about Vedic astrology generally, or analyse any birth chart by calling tools.
+
+## CORE INSTRUCTIONS
+- Be specific, accurate, and rooted in classical Vedic texts.
+- Always call mcp_get_current_datetime before any timing prediction — never guess the date.
+- For any birth chart question, start with mcp_get_complete_astro_profile, then drill down with specialised tools.
+- Use mcp_lookup_location to resolve city names to coordinates.
+
+${TOOL_GUIDE}`;
 
             const endpointSel = document.getElementById('ai_endpoint');
             const isAzure = endpointSel.value === 'azure';
@@ -1449,6 +2194,9 @@
                 document.getElementById('tab-' + t).style.display = (t === name) ? 'block' : 'none';
                 document.getElementById('tab-btn-' + t).classList.toggle('active', t === name);
             });
+            if (name === 'chat' && _chatMode === 'multi') {
+                refreshMultiProfilePicker();
+            }
         }
 
         function toggleDark() {
