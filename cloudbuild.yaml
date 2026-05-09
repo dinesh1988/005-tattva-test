@@ -1,6 +1,12 @@
 # Google Cloud Build Configuration
 # Automated CI/CD for VedAstroPy API
 # Triggers on: git push to main branch
+#
+# Manual submit:
+#   gcloud builds submit --config cloudbuild.yaml --substitutions=_TAG=$(git rev-parse --short HEAD) .
+
+substitutions:
+  _TAG: latest   # overridden by --substitutions=_TAG=<sha> on manual submit
 
 steps:
   # Step 1: Build the container image
@@ -8,17 +14,16 @@ steps:
     args: 
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$_TAG'
       - '-t'
       - 'gcr.io/$PROJECT_ID/tattva-api:latest'
       - '.'
-    dir: 'VedAstroPy'
 
   # Step 2: Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
     args: 
       - 'push'
-      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$_TAG'
 
   - name: 'gcr.io/cloud-builders/docker'
     args: 
@@ -39,7 +44,7 @@ steps:
       - 'deploy'
       - 'tattva-api'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+      - 'gcr.io/$PROJECT_ID/tattva-api:$_TAG'
       - '--region'
       - 'us-central1'
       - '--platform'
@@ -54,11 +59,11 @@ steps:
       - '--max-instances'
       - '10'
       - '--set-env-vars'
-      - 'VERSION=$SHORT_SHA,BUILD_ID=$BUILD_ID'
+      - 'VERSION=$_TAG,BUILD_ID=$BUILD_ID'
 
 # Images to store in Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/tattva-api:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/tattva-api:$_TAG'
   - 'gcr.io/$PROJECT_ID/tattva-api:latest'
 
 # Build timeout
