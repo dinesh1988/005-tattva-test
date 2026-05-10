@@ -359,6 +359,11 @@
         [data-theme="dark"] .ai-bubble-assistant blockquote { background: #1a1a2e; color: #aaa; }
         [data-theme="dark"] .ai-bubble-assistant th { background: #2a2050; }
 
+        /* ── Dark mode: chat mode toggle bar ── */
+        [data-theme="dark"] #chat_mode_toggle { background: #1e2a45 !important; }
+        [data-theme="dark"] #chat_mode_toggle button { color: #aaa; }
+        [data-theme="dark"] .chat-intro-text { color: var(--text-label) !important; }
+
         /* ── Dark mode: multi-profile UI ── */
         [data-theme="dark"] #ai_multi_chat_messages { background: #0f1c2e !important; }
         [data-theme="dark"] #ai_multi_chat_messages .ai-bubble-assistant {
@@ -377,6 +382,7 @@
         [data-theme="dark"] .multi-add-hint { color: var(--text-muted) !important; }
         [data-theme="dark"] .multi-intro-text { color: var(--text-label) !important; }
         [data-theme="dark"] .chat-empty-hint { color: var(--text-muted) !important; }
+
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
 </head>
@@ -1008,7 +1014,7 @@
                     <h3>🤖 AI Astrology Chat</h3>
 
                     <!-- Chat Mode Toggle -->
-                    <div style="display: flex; gap: 4px; margin-bottom: 15px; background: #f0f0f0; border-radius: 8px; padding: 4px;">
+                    <div id="chat_mode_toggle" style="display: flex; gap: 4px; margin-bottom: 15px; background: #f0f0f0; border-radius: 8px; padding: 4px;">
                         <button id="chat_mode_btn_single" onclick="setChatMode('single')" style="flex: 1; padding: 7px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg, #667eea, #764ba2); color: white; transition: all 0.2s;">💬 Single Profile</button>
                         <button id="chat_mode_btn_multi" onclick="setChatMode('multi')" style="flex: 1; padding: 7px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; background: transparent; color: #666; transition: all 0.2s;">👥 Multi Profile</button>
                     </div>
@@ -1046,12 +1052,12 @@
 
                     <!-- ── Single Profile Chat ─────────────────────────────── -->
                     <div id="chat_single_area">
-                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">
+                        <p class="chat-intro-text" style="color: #666; font-size: 14px; margin-bottom: 15px;">
                             Ask any Vedic astrology question. Load a birth profile from the <strong>Birth Profile</strong> tab for personalized chart insights, or chat freely about any topic.
                         </p>
                         <!-- Chat window -->
                         <div id="ai_chat_messages" style="height: clamp(300px, 50vh, 560px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
-                            <div style="color: #999; font-size: 13px; text-align: center; margin: auto;">Ask any astrology question, or load a birth profile from the Birth Profile tab for personalized insights.</div>
+                            <div class="chat-empty-hint" style="font-size: 13px; text-align: center; margin: auto;">Ask any astrology question, or load a birth profile from the Birth Profile tab for personalized insights.</div>
                         </div>
                         <!-- Input -->
                         <div style="display: flex; gap: 8px; align-items: stretch;">
@@ -1682,16 +1688,17 @@
             document.getElementById('chat_multi_area').style.display = isSingle ? 'none' : '';
             const btnSingle = document.getElementById('chat_mode_btn_single');
             const btnMulti  = document.getElementById('chat_mode_btn_multi');
+            const inactiveColor = document.documentElement.getAttribute('data-theme') === 'dark' ? '#aaa' : '#666';
             if (isSingle) {
                 btnSingle.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
                 btnSingle.style.color = 'white';
                 btnMulti.style.background  = 'transparent';
-                btnMulti.style.color = '#666';
+                btnMulti.style.color = inactiveColor;
             } else {
                 btnMulti.style.background  = 'linear-gradient(135deg, #667eea, #764ba2)';
                 btnMulti.style.color = 'white';
                 btnSingle.style.background = 'transparent';
-                btnSingle.style.color = '#666';
+                btnSingle.style.color = inactiveColor;
                 refreshMultiProfilePicker();
             }
         }
