@@ -1690,7 +1690,7 @@
             });
         }
 
-        function addToMultiChat() {
+        async function addToMultiChat() {
             const picker = document.getElementById('multi_profile_picker');
             const key = picker.value;
             if (!key) { alert('Please select a profile to add.'); return; }
@@ -1698,7 +1698,27 @@
             const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
             const p = profiles[key];
             if (!p) { alert('Profile not found in storage.'); return; }
-            _multiProfiles.push({ _key: key, name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place });
+
+            // Fetch geo data to pre-compute birth_dt_iso with correct timezone offset
+            let lat = null, lon = null, birth_dt_iso = null;
+            try {
+                const geoResp = await fetch(`${getApiBase()}/location/${encodeURIComponent(p.birth_place)}`);
+                if (geoResp.ok) {
+                    const geo = await geoResp.json();
+                    lat = geo.latitude;
+                    lon = geo.longitude;
+                    const naiveDateStr = `${p.birth_date}T${p.birth_time}:00`;
+                    const testDate = new Date(naiveDateStr);
+                    const tzOffset = getTimezoneOffsetMinutes(geo.timezone, testDate);
+                    const sign = tzOffset <= 0 ? '+' : '-';
+                    const absMin = Math.abs(tzOffset);
+                    const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
+                    const mm = String(absMin % 60).padStart(2, '0');
+                    birth_dt_iso = `${naiveDateStr}${sign}${hh}:${mm}`;
+                }
+            } catch(e) { /* leave null — AI will fall back to mcp_lookup_location */ }
+
+            _multiProfiles.push({ _key: key, name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place, latitude: lat, longitude: lon, birth_dt_iso });
             refreshMultiProfilePills();
             clearMultiChatMessages();
             picker.value = '';
@@ -1790,8 +1810,11 @@
             _multiChatHistory.push({ role: 'user', content: question });
 
             const profilesText = _multiProfiles.map((p, i) =>
-                `Person ${i + 1} — ${p.name}, born ${p.birth_date} at ${p.birth_time}, place: ${p.birth_place}`
-            ).join('\n');
+                `Person ${i + 1} — ${p.name}:\n` +
+                `  birth_date: ${p.birth_date}, birth_time: ${p.birth_time}, birth_place: ${p.birth_place}\n` +
+                (p.birth_dt_iso ? `  birth_dt_iso: ${p.birth_dt_iso}  ← USE THIS for all ISO datetime tools\n` : '') +
+                (p.latitude != null ? `  latitude: ${p.latitude}, longitude: ${p.longitude}` : '  (call mcp_lookup_location to get lat/lon/timezone)')
+            ).join('\n\n');
 
             const MULTI_TOOL_GUIDE = `
 ## AVAILABLE TOOLS (49 total — same as single profile mode)
@@ -1819,11 +1842,11 @@ Key tools for multi-person sessions:
 | Family group reading | mcp_get_complete_astro_profile per person, then synthesise |
 
 ## TOOL CALL GUIDANCE
-- When the user says 'Person 1' or refers to a name, use THAT person's birth_date, birth_time, birth_place.
-- birth_dt (ISO format) is pre-computed in the profile as birth_dt_iso — use it directly, NEVER reconstruct it.
+- When the user says 'Person 1' or refers to a name, use THAT person's birth_dt_iso, latitude, longitude, birth_date, birth_time, birth_place.
+- birth_dt_iso is pre-computed and shown in each profile above — USE IT EXACTLY AS-IS for all ISO datetime tools. Do not modify or reconstruct it.
 - birth_dt format: "YYYY-MM-DDTHH:MM:00+HH:MM" — the timezone offset matters; a wrong offset causes wrong lagna and nakshatra.
-- For compatibility (mcp_kundali_compatibility), use each person's birth_dt_iso for person1_dt / person2_dt, and their latitude/longitude.
-- Style A tools need birth_dt + birth_lat + birth_lon. Style B tools need birth_date + birth_time + birth_place.`;
+- For compatibility (mcp_kundali_compatibility), pass person1_dt = Person 1's birth_dt_iso, person2_dt = Person 2's birth_dt_iso.
+- Style A tools (mcp_get_complete_astro_profile etc.) need birth_dt + birth_lat + birth_lon. Style B tools (mcp_get_birth_yogas etc.) need birth_date + birth_time + birth_place.`;
 
             const systemPrompt = `You are Tattva, a master Vedic astrologer with 49 live API tools. Multiple birth profiles are loaded for this session. Analyse any or all of them individually or together.
 
