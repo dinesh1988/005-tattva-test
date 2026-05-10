@@ -358,6 +358,25 @@
         [data-theme="dark"] .ai-bubble-assistant pre { background: #1e1e3a; }
         [data-theme="dark"] .ai-bubble-assistant blockquote { background: #1a1a2e; color: #aaa; }
         [data-theme="dark"] .ai-bubble-assistant th { background: #2a2050; }
+
+        /* ── Dark mode: multi-profile UI ── */
+        [data-theme="dark"] #ai_multi_chat_messages { background: #0f1c2e !important; }
+        [data-theme="dark"] #ai_multi_chat_messages .ai-bubble-assistant {
+            background: #1a2a3a !important; color: #d0dae8 !important; border-color: #2a3a4a !important;
+        }
+        [data-theme="dark"] #ai_multi_chat_messages .ai-bubble-user {
+            background: linear-gradient(135deg, #667eea, #764ba2) !important; color: white !important;
+        }
+        [data-theme="dark"] #multi_add_panel {
+            background: #1a2d1a !important; border: 1px solid #2a4a2a;
+        }
+        [data-theme="dark"] #multi_add_panel strong { color: #81c784 !important; }
+        [data-theme="dark"] #multi_profile_picker {
+            background: var(--bg-input) !important; border-color: #2a4a2a !important; color: var(--text-main) !important;
+        }
+        [data-theme="dark"] .multi-add-hint { color: var(--text-muted) !important; }
+        [data-theme="dark"] .multi-intro-text { color: var(--text-label) !important; }
+        [data-theme="dark"] .chat-empty-hint { color: var(--text-muted) !important; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
 </head>
@@ -1043,12 +1062,12 @@
 
                     <!-- ── Multi Profile Chat ──────────────────────────────── -->
                     <div id="chat_multi_area" style="display:none">
-                        <p style="color: #666; font-size: 14px; margin-bottom: 12px;">
+                        <p class="multi-intro-text" style="color: #666; font-size: 14px; margin-bottom: 12px;">
                             Load multiple saved birth profiles and ask questions about any of them together — ideal for compatibility, family, or group readings.
                         </p>
 
                         <!-- Add profile picker -->
-                        <div style="background: #e8f5e9; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                        <div id="multi_add_panel" style="background: #e8f5e9; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
                             <strong style="font-size: 13px; color: #2e7d32;">➕ Add Profile to Chat</strong>
                             <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center;">
                                 <select id="multi_profile_picker" style="flex: 1; min-width: 150px; padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
@@ -1056,7 +1075,7 @@
                                 </select>
                                 <button onclick="addToMultiChat()" style="padding: 6px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Add</button>
                             </div>
-                            <p style="font-size: 12px; color: #888; margin: 6px 0 0;">Profiles are saved in the Birth Profile tab. You can add as many as needed.</p>
+                            <p class="multi-add-hint" style="font-size: 12px; color: #888; margin: 6px 0 0;">Profiles are saved in the Birth Profile tab. You can add as many as needed.</p>
                         </div>
 
                         <!-- Loaded profiles pills -->
@@ -1071,7 +1090,7 @@
 
                         <!-- Multi chat window -->
                         <div id="ai_multi_chat_messages" style="height: clamp(280px, 45vh, 520px); overflow-y: auto; background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px;">
-                            <div id="ai_multi_empty_msg" style="color: #999; font-size: 13px; text-align: center; margin: auto;">Add profiles above, then ask about any of them.</div>
+                            <div id="ai_multi_empty_msg" class="chat-empty-hint" style="color: #999; font-size: 13px; text-align: center; margin: auto;">Add profiles above, then ask about any of them.</div>
                         </div>
                         <!-- Input -->
                         <div style="display: flex; gap: 8px; align-items: stretch;">
@@ -1754,7 +1773,8 @@
             msgs.innerHTML = '';
             const hint = document.createElement('div');
             hint.id = 'ai_multi_empty_msg';
-            hint.style.cssText = 'color: #999; font-size: 13px; text-align: center; margin: auto;';
+            hint.className = 'chat-empty-hint';
+            hint.style.cssText = 'font-size: 13px; text-align: center; margin: auto;';
             hint.textContent = _multiProfiles.length > 0
                 ? `${_multiProfiles.length} profile${_multiProfiles.length > 1 ? 's' : ''} loaded. Ask anything about them.`
                 : 'Add profiles above, then ask about any of them.';
