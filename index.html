@@ -1820,8 +1820,10 @@ Key tools for multi-person sessions:
 
 ## TOOL CALL GUIDANCE
 - When the user says 'Person 1' or refers to a name, use THAT person's birth_date, birth_time, birth_place.
-- birth_dt format for ISO tools: convert 'YYYY-MM-DD' + 'HH:MM' + place timezone to 'YYYY-MM-DDTHH:MM:00+HH:MM' — use mcp_lookup_location to get the timezone offset.
-- For compatibility, you need both persons' ISO datetimes and coordinates — call mcp_lookup_location for each if coordinates are not known.`;
+- birth_dt (ISO format) is pre-computed in the profile as birth_dt_iso — use it directly, NEVER reconstruct it.
+- birth_dt format: "YYYY-MM-DDTHH:MM:00+HH:MM" — the timezone offset matters; a wrong offset causes wrong lagna and nakshatra.
+- For compatibility (mcp_kundali_compatibility), use each person's birth_dt_iso for person1_dt / person2_dt, and their latitude/longitude.
+- Style A tools need birth_dt + birth_lat + birth_lon. Style B tools need birth_date + birth_time + birth_place.`;
 
             const systemPrompt = `You are Tattva, a master Vedic astrologer with 49 live API tools. Multiple birth profiles are loaded for this session. Analyse any or all of them individually or together.
 
@@ -1916,11 +1918,40 @@ ${profilesText}`;
         }
         // ── End Multi-Profile Chat ────────────────────────────────────────────
 
+        // Returns the UTC offset in minutes for a given IANA timezone at a given Date.
+        // Positive = behind UTC (e.g. America/New_York = +300), negative = ahead (Asia/Kolkata = -330).
+        function getTimezoneOffsetMinutes(ianaTimezone, date) {
+            // Use Intl to get the local time in that zone, compare to UTC
+            const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+            const tzDate  = new Date(date.toLocaleString('en-US', { timeZone: ianaTimezone }));
+            return (utcDate - tzDate) / 60000; // positive = behind UTC
+        }
+
         function setAiProfileContext(profileResult) {
+            // Pre-compute the ISO datetime string the AI needs for birth_dt tools
+            // birth_data has: date (YYYY-MM-DD), time (HH:MM), latitude, longitude, timezone (IANA)
+            let birth_dt_iso = null;
+            try {
+                const bd = profileResult.birth_data || {};
+                if (bd.date && bd.time && bd.timezone) {
+                    // Build the offset string from the IANA timezone using Intl
+                    const naiveDateStr = `${bd.date}T${bd.time}:00`;
+                    const testDate = new Date(naiveDateStr);
+                    // Get UTC offset in minutes for that timezone on that date
+                    const tzOffset = getTimezoneOffsetMinutes(bd.timezone, testDate);
+                    const sign = tzOffset <= 0 ? '+' : '-';
+                    const absMin = Math.abs(tzOffset);
+                    const hh = String(Math.floor(absMin / 60)).padStart(2, '0');
+                    const mm = String(absMin % 60).padStart(2, '0');
+                    birth_dt_iso = `${naiveDateStr}${sign}${hh}:${mm}`;
+                }
+            } catch(e) { /* fallback: leave null */ }
+
             // Compact the profile to stay within token limits
             const ctx = {
                 name: profileResult.name,
                 birth_data: profileResult.birth_data,
+                birth_dt_iso: birth_dt_iso,   // pre-computed ISO for tools that need birth_dt
                 executive_summary: profileResult.executive_summary,
                 birth_chart: { lagna: profileResult.birth_chart.lagna, planets: profileResult.birth_chart.planets },
                 panchang: profileResult.panchang,
@@ -2058,7 +2089,32 @@ ${profilesText}`;
 - mcp_get_signal_strengths — 12 Ketu house signal strength profiles
 - mcp_get_superpowers — 27 nakshatra-based superpower profiles
 
-## QUESTION → TOOL WORKFLOW
+## TOOL PARAMETER GUIDE
+Tools use two different parameter styles — use the right one:
+
+**Style A — ISO datetime tools** (birth_dt / dt / birth_lat / birth_lon):
+  mcp_get_complete_astro_profile, mcp_get_yoga_summary, mcp_get_house_positions,
+  mcp_get_house_lords, mcp_get_planet_relationships, mcp_get_planet_aspects,
+  mcp_get_chart_dignities, mcp_get_jaimini, mcp_get_varshaphal, mcp_get_kakshya,
+  mcp_get_pancha_pakshi, mcp_get_wealth_yogas, mcp_get_gochara_panchang,
+  mcp_get_vedha, mcp_get_personal_gochara, mcp_kundali_compatibility,
+  mcp_get_planet_in_house, mcp_get_planet_in_sign, mcp_get_house_lord_in_house,
+  mcp_get_rising_sign_interpretation, mcp_get_muhurtha, mcp_get_daily_prediction,
+  mcp_get_ashtakavarga, mcp_get_functional_nature
+
+  → Use birth_dt_iso from the LOADED BIRTH CHART below. NEVER reconstruct it.
+  → birth_dt format: "YYYY-MM-DDTHH:MM:00+HH:MM" (local time with timezone offset)
+  → latitude = birth_data.latitude, longitude = birth_data.longitude
+
+**Style B — date/time/place tools** (birth_date / birth_time / birth_place):
+  mcp_get_planet_positions, mcp_get_birth_yogas, mcp_get_shadbala,
+  mcp_get_planet_avastha, mcp_get_dasa, mcp_get_dasa_full, mcp_get_bhava_chalit,
+  mcp_get_birth_varna, mcp_get_maraka_planets, mcp_get_upagrahas,
+  mcp_generate_psychic_profile, mcp_get_numerology
+
+  → Use birth_date (YYYY-MM-DD), birth_time (HH:MM), birth_place (city name) from LOADED BIRTH CHART
+
+
 | User asks about | Recommended tool chain |
 |---|---|
 | Overview / general reading | mcp_get_complete_astro_profile → mcp_get_birth_yogas |
@@ -2080,6 +2136,7 @@ ${profilesText}`;
 - Keep answers concise and focused unless the user asks for detail.
 - Always call mcp_get_current_datetime before giving any timing-based prediction — never assume today's date.
 - When a question involves a location not in the profile, call mcp_lookup_location to get coordinates.
+- CRITICAL: For tools requiring birth_dt (ISO format), ALWAYS use the pre-computed birth_dt_iso from the LOADED BIRTH CHART. NEVER reconstruct the ISO datetime yourself — a wrong timezone offset causes wrong lagna and nakshatra.
 
 ${TOOL_GUIDE}
 
