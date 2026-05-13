@@ -999,7 +999,7 @@
                     <h3>💻 Raw JSON Response</h3>
                     <details>
                         <summary style="cursor: pointer; color: #667eea; font-weight: 600;">View Full Response</summary>
-                        <button onclick="copyJsonToClipboard()" style="margin: 10px 0; padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <button onclick="copyJsonToClipboard(event)" style="margin: 10px 0; padding: 8px 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
                             📋 Copy JSON
                         </button>
                         <pre id="raw_json" style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; margin-top: 10px;"></pre>
@@ -2426,8 +2426,8 @@ ${TOOL_GUIDE}`;
 
         function copyGocharaJsonToClipboard(event) {
             const jsonText = document.getElementById('gochara_raw_json').textContent;
+            const btn = event.target;
             navigator.clipboard.writeText(jsonText).then(() => {
-                const btn = event.target;
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '✅ Copied!';
                 btn.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
@@ -2442,8 +2442,8 @@ ${TOOL_GUIDE}`;
 
         function copyDaily5JsonToClipboard(event) {
             const jsonText = document.getElementById('daily5_raw_json').textContent;
+            const btn = event.target;
             navigator.clipboard.writeText(jsonText).then(() => {
-                const btn = event.target;
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '✅ Copied!';
                 btn.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
@@ -3083,12 +3083,10 @@ ${TOOL_GUIDE}`;
             document.getElementById('daily5Form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
         
-        function copyJsonToClipboard() {
+        function copyJsonToClipboard(event) {
             const jsonText = document.getElementById('raw_json').textContent;
-            
+            const btn = event.target;
             navigator.clipboard.writeText(jsonText).then(() => {
-                // Show success feedback
-                const btn = event.target;
                 const originalText = btn.innerHTML;
                 btn.innerHTML = '✅ Copied!';
                 btn.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
