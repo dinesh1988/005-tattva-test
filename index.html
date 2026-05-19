@@ -3895,16 +3895,24 @@ ${TOOL_GUIDE}`;
             
             // For D1, use houses. For divisional charts, use sign numbers
             if (chartType === 'd1') {
-                // Add Lagna to house 1
-                houseData[1].sign = birthChart.lagna.rasi;
-                
+                // Sign order matching the backend RASIS list
+                const RASI_NAMES_D1 = [
+                    'Aries (Mesha)', 'Taurus (Vrishabha)', 'Gemini (Mithuna)', 'Cancer (Karka)',
+                    'Leo (Simha)', 'Virgo (Kanya)', 'Libra (Tula)', 'Scorpio (Vrishchika)',
+                    'Sagittarius (Dhanu)', 'Capricorn (Makara)', 'Aquarius (Kumbha)', 'Pisces (Meena)'
+                ];
+                const lagnaRasiNum = birthChart.lagna.rasi_num; // 1-12
+
+                // Pre-fill all 12 house signs using Whole Sign (Lagna sign = House 1 sign)
+                for (let h = 1; h <= 12; h++) {
+                    const idx = (lagnaRasiNum - 1 + h - 1) % 12;
+                    houseData[h].sign = RASI_NAMES_D1[idx];
+                }
+
                 // Add planets to their houses
                 birthChart.planets.forEach(planet => {
                     if (planet.house) {
                         houseData[planet.house].planets.push(planet.planet);
-                        if (!houseData[planet.house].sign) {
-                            houseData[planet.house].sign = planet.rasi;
-                        }
                     }
                 });
             } else {

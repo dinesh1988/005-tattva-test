@@ -504,11 +504,12 @@ def get_ascendant(jd: float, lat: float, lon: float, ayanamsa: str = 'LAHIRI') -
 
 
 def get_house_from_longitude(planet_long: float, asc_long: float) -> int:
-    """Calculate house number (1-12) from planet longitude and ascendant."""
-    # House 1 starts from ascendant
-    distance = (planet_long - asc_long) % 360
-    house = int(distance / 30) + 1
-    return house
+    """Calculate house number (1-12) using Whole Sign house system (standard Vedic astrology).
+    House 1 = same sign as Lagna, House 2 = next sign, etc.
+    """
+    planet_rasi = int(planet_long / 30) % 12   # 0-11
+    lagna_rasi  = int(asc_long  / 30) % 12    # 0-11
+    return (planet_rasi - lagna_rasi) % 12 + 1
 
 
 def get_nakshatra_number(longitude: float) -> int:
