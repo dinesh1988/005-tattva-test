@@ -1075,13 +1075,37 @@
                         <!-- Add profile picker -->
                         <div id="multi_add_panel" style="background: #e8f5e9; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
                             <strong style="font-size: 13px; color: #2e7d32;">➕ Add Profile to Chat</strong>
-                            <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center;">
-                                <select id="multi_profile_picker" style="flex: 1; min-width: 150px; padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
-                                    <option value="">-- Select a saved profile --</option>
-                                </select>
-                                <button onclick="addToMultiChat()" style="padding: 6px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Add</button>
+                            <!-- Source toggle -->
+                            <div style="display: flex; gap: 4px; margin-top: 8px; background: #c8e6c9; border-radius: 6px; padding: 3px;">
+                                <button id="multi_src_saved_btn" onclick="setMultiAddSource('saved')" style="flex: 1; padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; background: #4caf50; color: white; transition: all 0.2s;">💾 From Saved</button>
+                                <button id="multi_src_new_btn" onclick="setMultiAddSource('new')" style="flex: 1; padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #388e3c; transition: all 0.2s;">✏️ Enter New</button>
                             </div>
-                            <p class="multi-add-hint" style="font-size: 12px; color: #888; margin: 6px 0 0;">Profiles are saved in the Birth Profile tab. You can add as many as needed.</p>
+
+                            <!-- From saved -->
+                            <div id="multi_src_saved" style="margin-top: 8px;">
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                                    <select id="multi_profile_picker" style="flex: 1; min-width: 150px; padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
+                                        <option value="">-- Select a saved profile --</option>
+                                    </select>
+                                    <button onclick="addToMultiChat()" style="padding: 6px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Add</button>
+                                </div>
+                                <p style="font-size: 12px; color: #888; margin: 6px 0 0;">Profiles saved in the Birth Profile tab appear here.</p>
+                            </div>
+
+                            <!-- Enter new inline -->
+                            <div id="multi_src_new" style="display:none; margin-top: 8px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;">
+                                    <input type="text" id="multi_new_name" placeholder="👤 Name" style="padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px; grid-column: 1 / -1;">
+                                    <input type="date" id="multi_new_date" style="padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
+                                    <input type="time" id="multi_new_time" style="padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px;">
+                                    <input type="text" id="multi_new_place" placeholder="📍 Birth place (city)" style="padding: 6px 10px; border: 2px solid #c8e6c9; border-radius: 6px; font-size: 13px; grid-column: 1 / -1;"
+                                        onkeydown="if(event.key==='Enter'){event.preventDefault();addNewProfileToMultiChat();}">
+                                </div>
+                                <div style="display: flex; gap: 6px; align-items: center;">
+                                    <button onclick="addNewProfileToMultiChat()" style="padding: 6px 18px; background: #4caf50; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Add to Chat</button>
+                                    <span style="font-size: 12px; color: #888;">This profile is session-only and won't be saved.</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Loaded profiles pills -->
@@ -1111,7 +1135,7 @@
     </div><!-- /.container -->
     
     <script>
-        const DEFAULT_API_BASE = 'http://localhost:8002/api/v1';
+        const DEFAULT_API_BASE = 'https://tattva-api-ap34h5ieya-uc.a.run.app/api/v1';
         const CLOUD_RUN_API_BASE = 'https://tattva-api-ap34h5ieya-uc.a.run.app/api/v1';
         const API_BASE_STORAGE_KEY = 'tattvaApiBaseV1';
 
@@ -1703,6 +1727,16 @@
             }
         }
 
+        function setMultiAddSource(src) {
+            const isSaved = src === 'saved';
+            document.getElementById('multi_src_saved').style.display = isSaved ? '' : 'none';
+            document.getElementById('multi_src_new').style.display   = isSaved ? 'none' : '';
+            document.getElementById('multi_src_saved_btn').style.background = isSaved ? '#4caf50' : 'transparent';
+            document.getElementById('multi_src_saved_btn').style.color      = isSaved ? 'white' : '#388e3c';
+            document.getElementById('multi_src_new_btn').style.background   = isSaved ? 'transparent' : '#4caf50';
+            document.getElementById('multi_src_new_btn').style.color        = isSaved ? '#388e3c' : 'white';
+        }
+
         function refreshMultiProfilePicker() {
             const picker = document.getElementById('multi_profile_picker');
             if (!picker) return;
@@ -1716,23 +1750,28 @@
             });
         }
 
-        async function addToMultiChat() {
-            const picker = document.getElementById('multi_profile_picker');
-            const key = picker.value;
-            if (!key) { alert('Please select a profile to add.'); return; }
-            if (_multiProfiles.some(x => x._key === key)) { alert(`"${key}" is already in the chat.`); return; }
-            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
-            const p = profiles[key];
-            if (!p) { alert('Profile not found in storage.'); return; }
+        async function _resolveAndPushProfile(p, keyForDupCheck) {
+            if (keyForDupCheck && _multiProfiles.some(x => x._key === keyForDupCheck)) {
+                alert(`"${keyForDupCheck}" is already in the chat.`); return false;
+            }
 
-            // Fetch geo data to pre-compute birth_dt_iso with correct timezone offset
+            // Show a transient "loading" hint in the chat area while fetching
+            const msgs = document.getElementById('ai_multi_chat_messages');
+            let loadHint = document.getElementById('ai_multi_loading_hint');
+            if (!loadHint) {
+                loadHint = document.createElement('div');
+                loadHint.id = 'ai_multi_loading_hint';
+                loadHint.style.cssText = 'font-size: 13px; text-align: center; color: #888; margin: auto;';
+                msgs.appendChild(loadHint);
+            }
+            loadHint.textContent = `⏳ Loading full chart for ${p.name}…`;
+
             let lat = null, lon = null, birth_dt_iso = null;
             try {
                 const geoResp = await fetch(`${getApiBase()}/location/${encodeURIComponent(p.birth_place)}`);
                 if (geoResp.ok) {
                     const geo = await geoResp.json();
-                    lat = geo.latitude;
-                    lon = geo.longitude;
+                    lat = geo.latitude; lon = geo.longitude;
                     const naiveDateStr = `${p.birth_date}T${p.birth_time}:00`;
                     const testDate = new Date(naiveDateStr);
                     const tzOffset = getTimezoneOffsetMinutes(geo.timezone, testDate);
@@ -1742,12 +1781,56 @@
                     const mm = String(absMin % 60).padStart(2, '0');
                     birth_dt_iso = `${naiveDateStr}${sign}${hh}:${mm}`;
                 }
-            } catch(e) { /* leave null — AI will fall back to mcp_lookup_location */ }
+            } catch(e) { /* leave null */ }
 
-            _multiProfiles.push({ _key: key, name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place, latitude: lat, longitude: lon, birth_dt_iso });
+            // Fetch the full astro profile (same payload as the Birth Profile tab)
+            let chartContext = null;
+            try {
+                const chartResp = await fetch(`${getApiBase()}/profile/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place })
+                });
+                if (chartResp.ok) {
+                    const chartResult = await chartResp.json();
+                    chartContext = JSON.stringify(compactChartForAI(chartResult, birth_dt_iso));
+                }
+            } catch(e) { /* fall back to birth data only */ }
+
+            if (loadHint) loadHint.remove();
+            _multiProfiles.push({ _key: keyForDupCheck || `__new_${Date.now()}`, name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place, latitude: lat, longitude: lon, birth_dt_iso, chartContext });
             refreshMultiProfilePills();
             clearMultiChatMessages();
-            picker.value = '';
+            return true;
+        }
+
+        async function addNewProfileToMultiChat() {
+            const name  = document.getElementById('multi_new_name').value.trim();
+            const date  = document.getElementById('multi_new_date').value.trim();
+            const time  = document.getElementById('multi_new_time').value.trim();
+            const place = document.getElementById('multi_new_place').value.trim();
+            if (!name)  { alert('Please enter a name.'); return; }
+            if (!date)  { alert('Please enter a birth date.'); return; }
+            if (!time)  { alert('Please enter a birth time.'); return; }
+            if (!place) { alert('Please enter a birth place.'); return; }
+            const ok = await _resolveAndPushProfile({ name, birth_date: date, birth_time: time, birth_place: place }, null);
+            if (ok) {
+                document.getElementById('multi_new_name').value  = '';
+                document.getElementById('multi_new_date').value  = '';
+                document.getElementById('multi_new_time').value  = '';
+                document.getElementById('multi_new_place').value = '';
+            }
+        }
+
+        async function addToMultiChat() {
+            const picker = document.getElementById('multi_profile_picker');
+            const key = picker.value;
+            if (!key) { alert('Please select a profile to add.'); return; }
+            const profiles = JSON.parse(localStorage.getItem('astroProfiles') || '{}');
+            const p = profiles[key];
+            if (!p) { alert('Profile not found in storage.'); return; }
+            const ok = await _resolveAndPushProfile(p, key);
+            if (ok) picker.value = '';
         }
 
         function removeFromMultiChat(index) {
@@ -1768,7 +1851,8 @@
                     const pill = document.createElement('div');
                     pill.className = 'multi-profile-pill';
                     pill.style.cssText = 'display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 20px; padding: 5px 12px; font-size: 13px; font-weight: 600;';
-                    pill.innerHTML = `Person ${i + 1}: ${p.name} <span onclick="removeFromMultiChat(${i})" style="cursor:pointer; font-size:15px; line-height:1; margin-left:2px; opacity:0.85;" title="Remove">✕</span>`;
+                    const chartBadge = p.chartContext ? ' <span title="Full chart loaded" style="font-size:12px;">📊</span>' : '';
+                    pill.innerHTML = `Person ${i + 1}: ${p.name}${chartBadge} <span onclick="removeFromMultiChat(${i})" style="cursor:pointer; font-size:15px; line-height:1; margin-left:2px; opacity:0.85;" title="Remove">✕</span>`;
                     container.appendChild(pill);
                 });
             }
@@ -1836,12 +1920,16 @@
 
             _multiChatHistory.push({ role: 'user', content: question });
 
-            const profilesText = _multiProfiles.map((p, i) =>
-                `Person ${i + 1} — ${p.name}:\n` +
-                `  birth_date: ${p.birth_date}, birth_time: ${p.birth_time}, birth_place: ${p.birth_place}\n` +
-                (p.birth_dt_iso ? `  birth_dt_iso: ${p.birth_dt_iso}  ← USE THIS for all ISO datetime tools\n` : '') +
-                (p.latitude != null ? `  latitude: ${p.latitude}, longitude: ${p.longitude}` : '  (call mcp_lookup_location to get lat/lon/timezone)')
-            ).join('\n\n');
+            const profilesText = _multiProfiles.map((p, i) => {
+                if (p.chartContext) {
+                    return `### Person ${i + 1} — ${p.name} (full chart pre-loaded)\n${p.chartContext}`;
+                }
+                return `### Person ${i + 1} — ${p.name} (birth data only — use mcp_get_complete_astro_profile if needed)\n` +
+                    `  birth_date: ${p.birth_date}, birth_time: ${p.birth_time}, birth_place: ${p.birth_place}\n` +
+                    (p.birth_dt_iso ? `  birth_dt_iso: ${p.birth_dt_iso}  ← USE THIS for all ISO datetime tools\n` : '') +
+                    (p.latitude != null ? `  latitude: ${p.latitude}, longitude: ${p.longitude}` : '  (call mcp_lookup_location to get lat/lon/timezone)');
+            }).join('\n\n');
+            const allChartsLoaded = _multiProfiles.every(p => p.chartContext);
 
             const MULTI_TOOL_GUIDE = `
 ## AVAILABLE TOOLS (49 total — same as single profile mode)
@@ -1876,14 +1964,19 @@ Key tools for multi-person sessions:
 - Style A tools (mcp_get_complete_astro_profile etc.) need birth_dt + birth_lat + birth_lon. Style B tools (mcp_get_birth_yogas etc.) need birth_date + birth_time + birth_place.`;
 
             const systemPrompt = `You are Tattva, a master Vedic astrologer with 49 live API tools. Multiple birth profiles are loaded for this session. Analyse any or all of them individually or together.
+${allChartsLoaded
+    ? '\nFull birth charts are pre-loaded for every person below — use them directly for basic questions. Only call tools for live/transit data or information not already present in the chart.'
+    : '\nSome profiles have full charts pre-loaded (marked below); others have birth data only — call mcp_get_complete_astro_profile for those as needed.'}
 
 ## CORE INSTRUCTIONS
 - Always identify which person the user is asking about. Match by name or 'Person N' label.
 - Never mix up birth data between people — always use the correct person's birth details when calling tools.
+- For profiles with a full chart already loaded, use it directly instead of calling mcp_get_complete_astro_profile again.
 - Always call mcp_get_current_datetime before any timing-based prediction.
 - Use mcp_lookup_location if you need lat/lon/timezone for a birth place.
 - For compatibility questions, always use mcp_kundali_compatibility.
 - Keep answers concise unless the user requests detail.
+- CRITICAL: For tools requiring birth_dt (ISO format), ALWAYS use the pre-computed birth_dt_iso from the loaded chart. NEVER reconstruct it yourself.
 
 ${MULTI_TOOL_GUIDE}
 
@@ -1975,6 +2068,28 @@ ${profilesText}`;
             const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
             const tzDate  = new Date(date.toLocaleString('en-US', { timeZone: ianaTimezone }));
             return (utcDate - tzDate) / 60000; // positive = behind UTC
+        }
+
+        // Returns the same compact chart object that setAiProfileContext builds, but without side-effects.
+        function compactChartForAI(profileResult, birth_dt_iso) {
+            return {
+                name: profileResult.name,
+                birth_data: profileResult.birth_data,
+                birth_dt_iso: birth_dt_iso,
+                executive_summary: profileResult.executive_summary,
+                birth_chart: { lagna: profileResult.birth_chart?.lagna, planets: profileResult.birth_chart?.planets },
+                panchang: profileResult.panchang,
+                dasa: { mahadasa: profileResult.dasa?.mahadasa, bhukti: profileResult.dasa?.bhukti, life_stage: profileResult.dasa?.life_stage, prediction_note: profileResult.dasa?.prediction_note },
+                yogas: profileResult.yogas,
+                numerology: profileResult.numerology,
+                functional_nature: profileResult.functional_nature,
+                shadbala_summary: {
+                    strongest: profileResult.shadbala_detailed?.strongest_planet,
+                    weakest:   profileResult.shadbala_detailed?.weakest_planet,
+                    ranking:   profileResult.shadbala_detailed?.ranking
+                },
+                prediction_framework: profileResult.prediction_framework
+            };
         }
 
         function setAiProfileContext(profileResult) {
