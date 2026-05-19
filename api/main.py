@@ -40,7 +40,7 @@ from logic.psychic_profile import (
     get_psychic_compatibility
 )
 from logic.geolocation import get_location, get_coordinates
-from logic.calculate import get_planet_longitude, get_lagnam
+from logic.calculate import get_planet_longitude, get_lagnam, is_planet_retrograde
 from logic.time import AstroTime
 from logic.consts import Planet
 from logic.panchang import get_tithi, get_yoga, get_nitya_yoga_details, get_karana
@@ -834,6 +834,8 @@ async def get_complete_profile(birth_data: BirthData):
         rasi_num = int(longitude / 30) + 1
         rasi_name = RASIS[rasi_num - 1]
         nakshatra = get_nakshatra(longitude)
+        retrograde = is_planet_retrograde(planet, astro_time)
+        degrees_in_sign = round(longitude % 30, 2)
         
         # Calculate house position
         house = get_house_from_longitude(longitude, lagna_long)
@@ -873,6 +875,8 @@ async def get_complete_profile(birth_data: BirthData):
         planets_data.append({
             'planet': planet.name,
             'longitude': round(longitude, 2),
+            'degrees_in_sign': degrees_in_sign,
+            'retrograde': retrograde,
             'rasi': rasi_name,
             'rasi_num': rasi_num,
             'house': house,
@@ -928,10 +932,53 @@ async def get_complete_profile(birth_data: BirthData):
     # Lagna interpretation (already calculated above)
     lagna_interp = get_rasi_interpretation(lagna_rasi)
     
+    # Compute divisional (varga) lagnas — apply each varga formula to lagna longitude
+    _vl = lagna_long
+    _d2_s,  _d2_n  = get_d2_hora(_vl)
+    _d3_s,  _d3_n  = get_d3_drekkana(_vl)
+    _d4_s,  _d4_n  = get_d4_chaturthamsa(_vl)
+    _d5_s,  _d5_n  = get_d5_panchamsa(_vl)
+    _d6_s,  _d6_n  = get_d6_shashtamsa(_vl)
+    _d7_s,  _d7_n  = get_d7_saptamsa(_vl)
+    _d8_s,  _d8_n  = get_d8_ashtamsa(_vl)
+    _d9_s,  _d9_n  = get_d9_navamsa(_vl)
+    _d10_s, _d10_n = get_d10_dasamsa(_vl)
+    _d11_s, _d11_n = get_d11_ekadasamsa(_vl)
+    _d12_s, _d12_n = get_d12_dwadasamsa(_vl)
+    _d16_s, _d16_n = get_d16_shodasamsa(_vl)
+    _d20_s, _d20_n = get_d20_vimsamsa(_vl)
+    _d24_s, _d24_n = get_d24_chaturvimsamsa(_vl)
+    _d27_s, _d27_n = get_d27_bhamsa(_vl)
+    _d30_s, _d30_n = get_d30_trimsamsa(_vl)
+    _d40_s, _d40_n = get_d40_khavedamsa(_vl)
+    _d45_s, _d45_n = get_d45_akshavedamsa(_vl)
+    _d60_s, _d60_n = get_d60_shashtiamsa(_vl)
+
     lagna_data = {
         'longitude': round(lagna_long, 2),
         'rasi': lagna_rasi,
         'rasi_num': lagna_rasi_num,
+        'vargas': {
+            'd2':  {'rasi': _d2_s,  'rasi_num': _d2_n},
+            'd3':  {'rasi': _d3_s,  'rasi_num': _d3_n},
+            'd4':  {'rasi': _d4_s,  'rasi_num': _d4_n},
+            'd5':  {'rasi': _d5_s,  'rasi_num': _d5_n},
+            'd6':  {'rasi': _d6_s,  'rasi_num': _d6_n},
+            'd7':  {'rasi': _d7_s,  'rasi_num': _d7_n},
+            'd8':  {'rasi': _d8_s,  'rasi_num': _d8_n},
+            'd9':  {'rasi': _d9_s,  'rasi_num': _d9_n},
+            'd10': {'rasi': _d10_s, 'rasi_num': _d10_n},
+            'd11': {'rasi': _d11_s, 'rasi_num': _d11_n},
+            'd12': {'rasi': _d12_s, 'rasi_num': _d12_n},
+            'd16': {'rasi': _d16_s, 'rasi_num': _d16_n},
+            'd20': {'rasi': _d20_s, 'rasi_num': _d20_n},
+            'd24': {'rasi': _d24_s, 'rasi_num': _d24_n},
+            'd27': {'rasi': _d27_s, 'rasi_num': _d27_n},
+            'd30': {'rasi': _d30_s, 'rasi_num': _d30_n},
+            'd40': {'rasi': _d40_s, 'rasi_num': _d40_n},
+            'd45': {'rasi': _d45_s, 'rasi_num': _d45_n},
+            'd60': {'rasi': _d60_s, 'rasi_num': _d60_n},
+        },
         'interpretation': {
             'description': f"{lagna_rasi} rising indicates a personality that is {', '.join(lagna_interp.get('traits', [])[:3])}.",
             'element': lagna_interp.get('element', ''),

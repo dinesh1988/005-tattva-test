@@ -57,6 +57,31 @@ def get_planet_longitude(planet: Planet, time: AstroTime):
         
     return nirayana_long
 
+def is_planet_retrograde(planet: Planet, time: AstroTime) -> bool:
+    """
+    Returns True if the planet is retrograde at the given time.
+    Rahu and Ketu are always retrograde (mean node moves backwards).
+    For other planets, a negative daily speed means retrograde.
+    """
+    if planet in (Planet.Rahu, Planet.Ketu):
+        return True
+
+    swe_id = -1
+    if planet == Planet.Sun: swe_id = swe.SUN
+    elif planet == Planet.Moon: swe_id = swe.MOON
+    elif planet == Planet.Mars: swe_id = swe.MARS
+    elif planet == Planet.Mercury: swe_id = swe.MERCURY
+    elif planet == Planet.Jupiter: swe_id = swe.JUPITER
+    elif planet == Planet.Venus: swe_id = swe.VENUS
+    elif planet == Planet.Saturn: swe_id = swe.SATURN
+    else:
+        return False
+
+    flags = swe.FLG_SWIEPH | swe.FLG_SPEED
+    output = swe.calc_ut(time.julian_day, swe_id, flags)
+    speed_long = output[0][3]   # deg/day; negative = retrograde
+    return speed_long < 0
+
 def get_lagnam(time: AstroTime):
     """
     Calculates the Nirayana (Sidereal) Ascendant (Lagnam).
