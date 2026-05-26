@@ -436,6 +436,15 @@ def _calc_graha_maitri(male_time: AstroTime, female_time: AstroTime) -> Dict:
     m_to_f = get_natural_relationship(male_lord, female_lord)
     f_to_m = get_natural_relationship(female_lord, male_lord)
 
+    # When both lords are the same planet, GrahaMaitri obtains in full (upstream fix Jan 4 2026)
+    if male_lord == female_lord:
+        return {
+            "name": "Graha Maitri", "description": "happiness and mental compatibility (important)",
+            "points": 5, "max_points": 5,
+            "nature": NATURE_GOOD, "info": "Both lords are the same planet — Rasi Kuta obtains in full",
+            "male_info": f"{male_lord.name} (SamePlanet)", "female_info": f"{female_lord.name} (SamePlanet)",
+        }
+
     is_m_friend = m_to_f in ("BestFriend", "Friend")
     is_f_friend = f_to_m in ("BestFriend", "Friend")
     is_m_enemy  = m_to_f in ("BitterEnemy", "Enemy")
