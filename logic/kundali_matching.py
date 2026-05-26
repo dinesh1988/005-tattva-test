@@ -316,8 +316,8 @@ def _calc_nadi(male_time: AstroTime, female_time: AstroTime) -> Dict:
         # Exception: same Janma lord or friends
         male_sign_idx = _moon_sign_idx(male_time)
         female_sign_idx = _moon_sign_idx(female_time)
-        male_lord = get_lord_of_sign(male_sign_idx + 1)
-        female_lord = get_lord_of_sign(female_sign_idx + 1)
+        male_lord = get_lord_of_sign(male_sign_idx)
+        female_lord = get_lord_of_sign(female_sign_idx)
         relation = get_natural_relationship(male_lord, female_lord)
         same_lord = male_lord == female_lord
         is_friend = relation in ("BestFriend", "Friend")
@@ -431,8 +431,8 @@ def _calc_yoni(male_time: AstroTime, female_time: AstroTime) -> Dict:
 def _calc_graha_maitri(male_time: AstroTime, female_time: AstroTime) -> Dict:
     male_sign = _moon_sign_idx(male_time)
     female_sign = _moon_sign_idx(female_time)
-    male_lord = get_lord_of_sign(male_sign + 1)
-    female_lord = get_lord_of_sign(female_sign + 1)
+    male_lord = get_lord_of_sign(male_sign)
+    female_lord = get_lord_of_sign(female_sign)
     m_to_f = get_natural_relationship(male_lord, female_lord)
     f_to_m = get_natural_relationship(female_lord, male_lord)
 
@@ -517,8 +517,8 @@ def _calc_rasi(male_time: AstroTime, female_time: AstroTime) -> Dict:
 
     # Exception: same lord or lords are friends cancels bad
     if nature == NATURE_BAD:
-        ml = get_lord_of_sign(male_sign + 1)
-        fl = get_lord_of_sign(female_sign + 1)
+        ml = get_lord_of_sign(male_sign)
+        fl = get_lord_of_sign(female_sign)
         if ml == fl or get_natural_relationship(ml, fl) in ("BestFriend", "Friend"):
             nature, info = NATURE_NEUTRAL, "bad neutralized by friendly Janma Rasi lords"
 
