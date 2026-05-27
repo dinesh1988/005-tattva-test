@@ -1,15 +1,16 @@
 """
 Database Module for VedAstroPy API
 ===================================
-Google Firestore integration for storing Psychic Profiles.
+Azure Table Storage integration for storing Psychic Profiles and Daily Predictions.
 
-Supports both:
-1. Google Firestore (Production)
-2. In-memory storage (Development/Testing)
+Supports:
+1. Azure Table Storage (Production) — set USE_AZURE_TABLES=true + AZURE_STORAGE_CONNECTION_STRING
+2. In-memory storage (Development/Testing) — default (no env vars needed)
 """
 
 import os
 import uuid
+import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
@@ -17,20 +18,18 @@ from typing import Optional, List, Dict, Any
 # Configuration
 # =============================================================================
 
-# Set to True to use Firestore, False for in-memory storage
-USE_FIRESTORE = os.getenv("USE_FIRESTORE", "false").lower() == "true"
+USE_AZURE_TABLES = os.getenv("USE_AZURE_TABLES", "false").lower() == "true"
 
-# Firestore settings (from environment variables)
-FIRESTORE_PROJECT_ID = os.getenv("FIRESTORE_PROJECT_ID", "")
-FIRESTORE_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")  # Path to service account JSON
-FIRESTORE_COLLECTION = os.getenv("FIRESTORE_COLLECTION", "psychic_profiles")
+AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+AZURE_TABLE_PROFILES = os.getenv("AZURE_TABLE_PROFILES", "TattvaProfiles")
+AZURE_TABLE_DAILY    = os.getenv("AZURE_TABLE_DAILY",    "TattvaDaily")
+AZURE_TABLE_USERS    = os.getenv("AZURE_TABLE_USERS",    "TattvaUsers")
 
 
 # =============================================================================
 # In-Memory Storage (Development)
 # =============================================================================
 
-# Simple in-memory store for development
 _memory_store: Dict[str, Dict[str, Any]] = {}
 
 
@@ -52,98 +51,99 @@ async def _get_from_memory(profile_id: str) -> Optional[dict]:
 
 async def _get_user_profiles_memory(user_id: str, limit: int = 10) -> List[dict]:
     """Get all profiles for a user from in-memory storage."""
-    profiles = [p for p in _memory_store.values() if p.get('user_id') == user_id]
-    return profiles[:limit]
+    profiles = [p for p in _memory_store.values()
+                if p.get('user_id') == user_id and p.get('type') != 'daily_prediction']
+    return sorted(profiles, key=lambda x: x.get('created_at', ''), reverse=True)[:limit]
 
 
 # =============================================================================
-# Google Firestore Storage (Production)
+# Azure Table Storage (Production)
 # =============================================================================
 
-_firestore_db = None
+_profiles_table = None
+_daily_table     = None
+_users_table     = None
 
 
-def _init_firestore():
-    """Initialize Firestore client (lazy loading)."""
-    global _firestore_db
-    
-    if _firestore_db is not None:
+def _init_azure():
+    """Lazy-init Azure Table Storage sync clients and create tables if needed."""
+    global _profiles_table, _daily_table, _users_table
+
+    if _profiles_table is not None:
         return
-    
+
     try:
-        import firebase_admin
-        from firebase_admin import credentials, firestore
-        
-        # Initialize Firebase Admin SDK
-        if not firebase_admin._apps:
-            if FIRESTORE_CREDENTIALS and os.path.exists(FIRESTORE_CREDENTIALS):
-                cred = credentials.Certificate(FIRESTORE_CREDENTIALS)
-                firebase_admin.initialize_app(cred)
-            else:
-                # Use default credentials (works in Cloud Run with service account)
-                firebase_admin.initialize_app()
-        
-        _firestore_db = firestore.client()
-        print(f"Connected to Firestore: {FIRESTORE_PROJECT_ID}/{FIRESTORE_COLLECTION}")
-        
+        from azure.data.tables import TableServiceClient
     except ImportError:
         raise RuntimeError(
-            "Firebase Admin SDK not installed. "
-            "Install with: pip install firebase-admin"
+            "azure-data-tables not installed. Run: pip install azure-data-tables"
         )
-    except Exception as e:
-        raise RuntimeError(f"Failed to connect to Firestore: {e}")
+
+    if not AZURE_STORAGE_CONNECTION_STRING:
+        raise RuntimeError(
+            "AZURE_STORAGE_CONNECTION_STRING env var is not set. "
+            "Set USE_AZURE_TABLES=false to use in-memory storage instead."
+        )
+
+    service = TableServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
+
+    for table_name in [AZURE_TABLE_PROFILES, AZURE_TABLE_DAILY, AZURE_TABLE_USERS]:
+        try:
+            service.create_table_if_not_exists(table_name)
+        except Exception:
+            pass  # Already exists
+
+    _profiles_table = service.get_table_client(AZURE_TABLE_PROFILES)
+    _daily_table    = service.get_table_client(AZURE_TABLE_DAILY)
+    _users_table    = service.get_table_client(AZURE_TABLE_USERS)
+    print(f"Connected to Azure Table Storage: {AZURE_TABLE_PROFILES}, {AZURE_TABLE_DAILY}, {AZURE_TABLE_USERS}")
 
 
-async def _save_to_firestore(profile: dict, user_id: str) -> str:
-    """Save profile to Google Firestore."""
-    _init_firestore()
-    
+# --- Profiles (async wrappers around sync Azure client) ----------------------
+
+import asyncio
+
+
+async def _save_to_azure(profile: dict, user_id: str) -> str:
+    _init_azure()
     profile_id = str(uuid.uuid4())
-    
-    # Prepare document
-    document = {
-        'id': profile_id,
-        'user_id': user_id,
-        'created_at': datetime.utcnow().isoformat(),
-        'type': 'psychic_profile',
-        **profile
+    document = {**profile, "id": profile_id, "user_id": user_id,
+                "created_at": datetime.utcnow().isoformat()}
+    entity = {
+        "PartitionKey": user_id,
+        "RowKey":       profile_id,
+        "ProfileJson":  json.dumps(document),
     }
-    
-    # Save to Firestore
-    doc_ref = _firestore_db.collection(FIRESTORE_COLLECTION).document(profile_id)
-    doc_ref.set(document)
-    
+    await asyncio.to_thread(_profiles_table.upsert_entity, entity)
     return profile_id
 
 
-async def _get_from_firestore(profile_id: str) -> Optional[dict]:
-    """Get profile from Google Firestore."""
-    _init_firestore()
-    
-    doc_ref = _firestore_db.collection(FIRESTORE_COLLECTION).document(profile_id)
-    doc = doc_ref.get()
-    
-    if doc.exists:
-        return doc.to_dict()
-    return None
+async def _get_from_azure(profile_id: str) -> Optional[dict]:
+    _init_azure()
+
+    def _query():
+        for entity in _profiles_table.query_entities(f"RowKey eq '{profile_id}'"):
+            return json.loads(entity["ProfileJson"])
+        return None
+
+    return await asyncio.to_thread(_query)
 
 
-async def _get_user_profiles_firestore(user_id: str, limit: int = 10) -> List[dict]:
-    """Get all profiles for a user from Google Firestore."""
-    _init_firestore()
-    
-    # Query profiles by user_id, ordered by created_at descending
-    profiles_ref = _firestore_db.collection(FIRESTORE_COLLECTION)
-    query = profiles_ref.where('user_id', '==', user_id) \
-                        .where('type', '==', 'psychic_profile') \
-                        .order_by('created_at', direction=firestore.Query.DESCENDING) \
-                        .limit(limit)
-    
-    docs = query.stream()
-    profiles = [doc.to_dict() for doc in docs]
-    
-    return profiles
+async def _get_user_profiles_azure(user_id: str, limit: int = 10) -> List[dict]:
+    _init_azure()
+
+    def _query():
+        results = []
+        for entity in _profiles_table.query_entities(f"PartitionKey eq '{user_id}'"):
+            try:
+                results.append(json.loads(entity["ProfileJson"]))
+            except Exception:
+                pass
+            if len(results) >= limit:
+                break
+        return sorted(results, key=lambda x: x.get('created_at', ''), reverse=True)
+
+    return await asyncio.to_thread(_query)
 
 
 # =============================================================================
@@ -152,77 +152,43 @@ async def _get_user_profiles_firestore(user_id: str, limit: int = 10) -> List[di
 
 async def get_db():
     """Dependency for database access."""
-    if USE_FIRESTORE:
-        _init_firestore()
-    return {"backend": "firestore" if USE_FIRESTORE else "memory"}
+    return {"backend": "azure_tables" if USE_AZURE_TABLES else "memory"}
 
 
 async def save_profile(profile: dict, user_id: str) -> str:
-    """
-    Save a psychic profile to the database.
-    
-    Args:
-        profile: Profile data dictionary
-        user_id: User ID for indexing
-        
-    Returns:
-        Generated profile ID
-    """
-    if USE_FIRESTORE:
-        return await _save_to_firestore(profile, user_id)
-    else:
-        return await _save_to_memory(profile, user_id)
+    """Save a psychic profile. Returns generated profile ID."""
+    if USE_AZURE_TABLES:
+        return await _save_to_azure(profile, user_id)
+    return await _save_to_memory(profile, user_id)
 
 
 async def get_profile_by_id(profile_id: str) -> Optional[dict]:
-    """
-    Retrieve a profile by its ID.
-    
-    Args:
-        profile_id: The profile's unique ID
-        
-    Returns:
-        Profile data or None if not found
-    """
-    if USE_FIRESTORE:
-        return await _get_from_firestore(profile_id)
-    else:
-        return await _get_from_memory(profile_id)
+    """Retrieve a profile by its ID."""
+    if USE_AZURE_TABLES:
+        return await _get_from_azure(profile_id)
+    return await _get_from_memory(profile_id)
 
 
 async def get_profiles_by_user(user_id: str, limit: int = 10) -> List[dict]:
-    """
-    Get all profiles for a specific user.
-    
-    Args:
-        user_id: The user's ID
-        limit: Maximum number of profiles to return
-        
-    Returns:
-        List of profile data dictionaries
-    """
-    if USE_FIRESTORE:
-        return await _get_user_profiles_firestore(user_id, limit)
-    else:
-        return await _get_user_profiles_memory(user_id, limit)
+    """Get all profiles for a specific user."""
+    if USE_AZURE_TABLES:
+        return await _get_user_profiles_azure(user_id, limit)
+    return await _get_user_profiles_memory(user_id, limit)
 
 
 async def delete_profile(profile_id: str, user_id: str = None) -> bool:
-    """
-    Delete a profile.
-    
-    Args:
-        profile_id: The profile's unique ID
-        user_id: The user's ID (optional, for validation)
-        
-    Returns:
-        True if deleted, False if not found
-    """
-    if USE_FIRESTORE:
-        _init_firestore()
+    """Delete a profile. Returns True if deleted, False if not found."""
+    if USE_AZURE_TABLES:
+        _init_azure()
         try:
-            doc_ref = _firestore_db.collection(FIRESTORE_COLLECTION).document(profile_id)
-            doc_ref.delete()
+            pk = user_id
+            if not pk:
+                profile = await _get_from_azure(profile_id)
+                if not profile:
+                    return False
+                pk = profile.get('user_id')
+            await asyncio.to_thread(_profiles_table.delete_entity,
+                                    partition_key=pk, row_key=profile_id)
             return True
         except Exception:
             return False
@@ -234,88 +200,131 @@ async def delete_profile(profile_id: str, user_id: str = None) -> bool:
 
 
 # =============================================================================
-# Firestore Best Practices Applied:
-# 
-# 1. Document ID: Auto-generated UUID for unique identification
-# 2. Indexes: Composite index on user_id + created_at for efficient querying
-# 3. Embedding: All profile data in single document (1MB limit per doc)
-# 4. Lazy Connection: Only connect when needed
-# 5. Service Account: Use GOOGLE_APPLICATION_CREDENTIALS for auth
-# 6. Collections: Single collection with type field for filtering
-# =============================================================================
-
-
-# =============================================================================
 # Daily Prediction Storage (Cache Layer)
 # =============================================================================
 
 def save_daily_prediction(prediction: dict, user_id: str, date: str) -> str:
     """
-    Save a daily prediction to Firestore with date-based caching.
-    Uses composite key: user_id + date for uniqueness.
-    
-    Args:
-        prediction: Prediction data dictionary
-        user_id: User ID
-        date: Date in YYYY-MM-DD format
-        
-    Returns:
-        Document ID (composite: user_id_date)
+    Save a daily prediction with date-based cache key (user_id + date).
+    Sync function — safe to call from non-async contexts.
     """
-    if USE_FIRESTORE:
-        _init_firestore()
-        
-        doc_id = f"{user_id}_{date}"
-        
-        document = {
-            'id': doc_id,
-            'user_id': user_id,
-            'date': date,
-            'created_at': datetime.utcnow().isoformat(),
-            'type': 'daily_prediction',
-            **prediction
-        }
-        
-        doc_ref = _firestore_db.collection(FIRESTORE_COLLECTION).document(doc_id)
-        doc_ref.set(document)
-        
-        return doc_id
+    doc_id = f"{user_id}_{date}"
+
+    if USE_AZURE_TABLES:
+        _init_azure()
+        try:
+            entity = {
+                "PartitionKey":    user_id,
+                "RowKey":          date,
+                "PredictionJson":  json.dumps({
+                    'id': doc_id, 'user_id': user_id, 'date': date,
+                    'created_at': datetime.utcnow().isoformat(),
+                    **prediction
+                }),
+            }
+            _daily_table.upsert_entity(entity)
+        except Exception as e:
+            print(f"Warning: Could not save daily prediction to Azure Tables: {e}")
     else:
-        # In-memory storage
-        doc_id = f"{user_id}_{date}"
         _memory_store[doc_id] = {
-            'id': doc_id,
-            'user_id': user_id,
-            'date': date,
+            'id': doc_id, 'user_id': user_id, 'date': date,
             'created_at': datetime.utcnow().isoformat(),
             'type': 'daily_prediction',
             **prediction
         }
-        return doc_id
+
+    return doc_id
 
 
 def get_daily_prediction(user_id: str, date: str) -> Optional[dict]:
     """
-    Retrieve a cached daily prediction for a user and date.
-    
-    Args:
-        user_id: User ID
-        date: Date in YYYY-MM-DD format
-        
-    Returns:
-        Prediction data if exists, None otherwise
+    Retrieve a cached daily prediction by user + date.
+    Sync function — safe to call from non-async contexts.
     """
-    doc_id = f"{user_id}_{date}"
-    
-    if USE_FIRESTORE:
-        _init_firestore()
-        
-        doc_ref = _firestore_db.collection(FIRESTORE_COLLECTION).document(doc_id)
-        doc = doc_ref.get()
-        
-        if doc.exists:
-            return doc.to_dict()
-        return None
+    if USE_AZURE_TABLES:
+        _init_azure()
+        try:
+            entity = _daily_table.get_entity(partition_key=user_id, row_key=date)
+            return json.loads(entity["PredictionJson"])
+        except Exception:
+            return None
     else:
-        # In-memory storage
+        doc_id = f"{user_id}_{date}"
         return _memory_store.get(doc_id)
+
+
+# =============================================================================
+# User Natal Profile Storage (one record per user)
+# =============================================================================
+
+async def save_user_record(user_id: str, data: dict) -> None:
+    """
+    Upsert the natal/phase profile record for a user.
+    Keyed by user_id — overwrites any previous record for that user.
+    """
+    data = {**data, "user_id": user_id, "updated_at": datetime.utcnow().isoformat()}
+
+    if USE_AZURE_TABLES:
+        _init_azure()
+        entity = {
+            "PartitionKey": "users",
+            "RowKey":       user_id,
+            "RecordJson":   json.dumps(data),
+        }
+        await asyncio.to_thread(_users_table.upsert_entity, entity)
+    else:
+        _memory_store[f"_user_record_{user_id}"] = data
+
+
+async def get_user_record(user_id: str) -> Optional[dict]:
+    """Retrieve the stored natal/phase profile for a user, or None if not found."""
+    if USE_AZURE_TABLES:
+        _init_azure()
+
+        def _query():
+            try:
+                entity = _users_table.get_entity(partition_key="users", row_key=user_id)
+                return json.loads(entity["RecordJson"])
+            except Exception:
+                return None
+
+        return await asyncio.to_thread(_query)
+    else:
+        return _memory_store.get(f"_user_record_{user_id}")
+
+
+async def invalidate_user_daily_cache(user_id: str) -> int:
+    """
+    Delete all cached daily predictions for a user.
+    Returns the number of entries removed.
+    """
+    if USE_AZURE_TABLES:
+        _init_azure()
+
+        def _delete_all():
+            count = 0
+            try:
+                entities = list(_daily_table.query_entities(f"PartitionKey eq '{user_id}'"))
+                for entity in entities:
+                    try:
+                        _daily_table.delete_entity(
+                            partition_key=entity["PartitionKey"],
+                            row_key=entity["RowKey"],
+                        )
+                        count += 1
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            return count
+
+        return await asyncio.to_thread(_delete_all)
+    else:
+        keys_to_delete = [
+            k for k in list(_memory_store.keys())
+            if k.startswith(f"{user_id}_") and _memory_store[k].get("type") == "daily_prediction"
+        ]
+        for k in keys_to_delete:
+            del _memory_store[k]
+        return len(keys_to_delete)
+

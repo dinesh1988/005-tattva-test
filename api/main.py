@@ -65,7 +65,8 @@ from logic.rising_sign import get_rising_sign_interpretation
 # Database imports
 from api.database import (
     get_db, save_profile, get_profile_by_id, get_profiles_by_user,
-    save_daily_prediction, get_daily_prediction
+    save_daily_prediction, get_daily_prediction,
+    save_user_record, get_user_record, invalidate_user_daily_cache,
 )
 
 # =============================================================================
@@ -366,6 +367,35 @@ class DailyFiveStepRequest(BaseModel):
         description="Baseline nakshatra for Tara Bala distance (Step 2)",
         example="Purva Bhadrapada",
     )
+
+
+class UserNatalProfileResponse(BaseModel):
+    """Full natal + phase profile returned by GET /profile/me and PUT /profile/birth-data."""
+    name: Optional[str] = None
+    birth_date: str
+    birth_time: str
+    birth_city: str
+    moon_sign: str
+    lagna_sign: str
+    atmakaraka: str
+    birth_nakshatra: str
+    base_disposition: str
+    user_focus: Optional[str] = None
+    focus_confirmed: bool = False
+    mahadasha_lord: str
+    mahadasha_end_date: str
+    bhukti_lord: str
+    bhukti_end_date: str
+    life_phase: str
+    phase_disposition: str
+
+
+class BirthDataUpdateRequest(BaseModel):
+    """Request body for PUT /api/v1/profile/birth-data."""
+    birth_date: str = Field(..., description="Birth date YYYY-MM-DD", example="1985-11-14")
+    birth_time: str = Field(..., description="Birth time HH:MM", example="07:15")
+    birth_city: str = Field(..., description="Birth city name", example="Chennai")
+    birth_country: Optional[str] = Field(None, description="Birth country (optional hint for geocoding)", example="India")
 
 
 # =============================================================================
@@ -3665,6 +3695,215 @@ async def _combined_lifespan(application):
 
 app.router.lifespan_context = _combined_lifespan
 app.mount("/mcp", _mcp_http_app)
+
+
+# =============================================================================
+# User Natal + Phase Profile Endpoints
+# =============================================================================
+
+# Mapping: dasa lord → life phase keyword
+_DASA_LIFE_PHASE = {
+    "Sun":     "authority",
+    "Moon":    "nurturing",
+    "Mars":    "action",
+    "Mercury": "analyzing",
+    "Jupiter": "expansion",
+    "Venus":   "harmony",
+    "Saturn":  "navigating",
+    "Rahu":    "transformation",
+    "Ketu":    "releasing",
+}
+
+# Mapping: dasa/bhukti lord → disposition keyword
+_DASA_DISPOSITION = {
+    "Sun":     "leader",
+    "Moon":    "nurturer",
+    "Mars":    "warrior",
+    "Mercury": "analyst",
+    "Jupiter": "guide",
+    "Venus":   "harmonizer",
+    "Saturn":  "builder",
+    "Rahu":    "seeker",
+    "Ketu":    "renunciant",
+}
+
+
+def _build_natal_profile_data(
+    birth_date: str,
+    birth_time: str,
+    birth_city: str,
+    *,
+    name: Optional[str] = None,
+    user_focus: Optional[str] = None,
+    focus_confirmed: bool = False,
+) -> dict:
+    """
+    Compute natal + phase fields from birth data.
+    Returns a dict matching UserNatalProfileResponse fields.
+    """
+    from logic.jaimini import get_chara_karakas
+
+    # --- Location & datetime -----------------------------------------------
+    location = get_location(birth_city)
+    if not location:
+        raise HTTPException(status_code=400, detail=f"Could not find location '{birth_city}'")
+    lat = location["latitude"]
+    lon = location["longitude"]
+    tz_name = location["timezone"]
+
+    birth_dt = _parse_local_datetime(birth_date, birth_time, tz_name)
+    astro_time = AstroTime(birth_dt, lat, lon)
+
+    # --- Moon nakshatra & signs -------------------------------------------
+    moon_long = get_planet_longitude(Planet.Moon, astro_time)
+    sun_long  = get_planet_longitude(Planet.Sun, astro_time)
+    nakshatra_name, nak_num, nak_pct, _ = get_nakshatra(moon_long)
+    moon_sign = SIGNS[int(moon_long / 30)]
+
+    lagna_long = get_lagnam(astro_time)
+    lagna_sign = SIGNS[int(lagna_long / 30)]
+
+    # --- Atmakaraka (highest-degree planet) --------------------------------
+    planet_longs = {
+        p.name: get_planet_longitude(p, astro_time)
+        for p in [Planet.Sun, Planet.Moon, Planet.Mars, Planet.Mercury,
+                  Planet.Jupiter, Planet.Venus, Planet.Saturn]
+    }
+    karakas = get_chara_karakas(planet_longs)
+    atmakaraka = karakas[0]["planet"] if karakas else "Unknown"
+
+    # --- Vimshottari dasa schedule → current mahadasha + bhukti ----------
+    schedule = get_vimshottari_dasa_schedule(nak_num, nak_pct, birth_dt)
+    today = datetime.now().date()
+
+    mahadasha_lord = "Unknown"
+    mahadasha_end_date = ""
+    bhukti_lord = "Unknown"
+    bhukti_end_date = ""
+
+    for maha in schedule.get("maha_dasas", []):
+        maha_start = datetime.strptime(maha["start_date"], "%Y-%m-%d").date()
+        maha_end   = datetime.strptime(maha["end_date"],   "%Y-%m-%d").date()
+        if maha_start <= today < maha_end:
+            mahadasha_lord     = maha["dasa_lord"]
+            mahadasha_end_date = maha["end_date"]
+            for bhukti in maha.get("bhuktis", []):
+                b_start = datetime.strptime(bhukti["start_date"], "%Y-%m-%d").date()
+                b_end   = datetime.strptime(bhukti["end_date"],   "%Y-%m-%d").date()
+                if b_start <= today < b_end:
+                    bhukti_lord     = bhukti["bhukti_lord"]
+                    bhukti_end_date = bhukti["end_date"]
+                    break
+            break
+
+    # --- Base disposition from psychic profile archetype ------------------
+    try:
+        psychic = get_psychic_profile(birth_dt, lat, lon)
+        archetype_raw: str = (
+            psychic.get("superpower", {}).get("archetype", "")
+            or psychic.get("title", "")
+        )
+        # e.g. "The Guide" → "guide"
+        base_disposition = archetype_raw.lower().replace("the ", "").strip().split()[0] if archetype_raw else "guide"
+    except Exception:
+        base_disposition = _DASA_DISPOSITION.get(mahadasha_lord, "guide")
+
+    life_phase        = _DASA_LIFE_PHASE.get(mahadasha_lord, "transitioning")
+    phase_disposition = _DASA_DISPOSITION.get(bhukti_lord, base_disposition)
+
+    return {
+        "name":               name,
+        "birth_date":         birth_date,
+        "birth_time":         birth_time,
+        "birth_city":         birth_city,
+        "moon_sign":          moon_sign,
+        "lagna_sign":         lagna_sign,
+        "atmakaraka":         atmakaraka,
+        "birth_nakshatra":    nakshatra_name,
+        "base_disposition":   base_disposition,
+        "user_focus":         user_focus,
+        "focus_confirmed":    focus_confirmed,
+        "mahadasha_lord":     mahadasha_lord,
+        "mahadasha_end_date": mahadasha_end_date,
+        "bhukti_lord":        bhukti_lord,
+        "bhukti_end_date":    bhukti_end_date,
+        "life_phase":         life_phase,
+        "phase_disposition":  phase_disposition,
+    }
+
+
+@app.get(
+    "/api/v1/profile/me",
+    response_model=UserNatalProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def get_my_profile(user_id: str):
+    """
+    Returns the stored natal + phase profile for a user.
+
+    Used by the frontend to retrieve current focus, disposition,
+    life phase, and dasha period without recomputing.
+
+    - **user_id**: The user's identifier
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use PUT /api/v1/profile/birth-data to create one.",
+        )
+    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
+
+
+@app.put(
+    "/api/v1/profile/birth-data",
+    response_model=UserNatalProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def update_birth_data(
+    body: BirthDataUpdateRequest,
+    user_id: str,
+):
+    """
+    Update a user's birth data, recompute the full natal + phase profile,
+    invalidate any cached daily predictions, and persist the updated record.
+
+    **user_focus** is preserved from the existing record across birth data corrections.
+
+    - **user_id**: The user's identifier (query parameter)
+    - **birth_date**: Corrected birth date (YYYY-MM-DD)
+    - **birth_time**: Corrected birth time (HH:MM)
+    - **birth_city**: Corrected birth city
+    - **birth_country**: Optional country hint for geocoding
+    """
+    # Preserve user_focus / focus_confirmed from existing record
+    existing = await get_user_record(user_id)
+    user_focus      = existing.get("user_focus")      if existing else None
+    focus_confirmed = existing.get("focus_confirmed", False) if existing else False
+    name            = existing.get("name")            if existing else None
+
+    # Geocoding: append country to city query if provided for better accuracy
+    city_query = f"{body.birth_city}, {body.birth_country}" if body.birth_country else body.birth_city
+
+    # Compute natal profile
+    profile_data = _build_natal_profile_data(
+        body.birth_date,
+        body.birth_time,
+        city_query,
+        name=name,
+        user_focus=user_focus,
+        focus_confirmed=focus_confirmed,
+    )
+    # Normalise birth_city back to what the user submitted (not the combined query)
+    profile_data["birth_city"] = body.birth_city
+
+    # Invalidate cached daily predictions for this user
+    await invalidate_user_daily_cache(user_id)
+
+    # Persist the updated record
+    await save_user_record(user_id, profile_data)
+
+    return UserNatalProfileResponse(**profile_data)
 
 
 # =============================================================================
