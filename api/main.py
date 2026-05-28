@@ -398,6 +398,85 @@ class BirthDataUpdateRequest(BaseModel):
     birth_country: Optional[str] = Field(None, description="Birth country (optional hint for geocoding)", example="India")
 
 
+_FOCUS_OPTIONS: list = ["career", "relationships", "health", "creative", "inner"]
+
+
+class OnboardRequest(BaseModel):
+    """Request body for POST /api/v1/profile/onboard."""
+    name: Optional[str] = Field(None, description="User's name", example="Dinesh")
+    birth_date: str = Field(..., description="Birth date YYYY-MM-DD", example="1985-11-14")
+    birth_time: str = Field(..., description="Birth time HH:MM", example="06:30")
+    birth_city: str = Field(..., description="Birth city name", example="Chennai")
+    birth_country: Optional[str] = Field(None, description="Birth country (optional hint for geocoding)", example="India")
+
+
+class OnboardResponse(UserNatalProfileResponse):
+    """Natal profile returned after onboarding, plus suggested focus area."""
+    suggested_focus: str = Field(..., description="Auto-suggested focus area based on Mahadasha")
+    focus_options: List[str] = Field(default_factory=lambda: ["career", "relationships", "health", "creative", "inner"])
+
+
+class FocusUpdateRequest(BaseModel):
+    """Request body for PATCH /api/v1/profile/focus."""
+    user_focus: str = Field(..., description="One of: career, relationships, health, creative, inner", example="career")
+
+
+class HomeResponse(BaseModel):
+    """All data the home screen needs in one call."""
+    # Identity
+    name: Optional[str] = None
+    base_disposition: str
+    user_focus: Optional[str] = None
+    focus_confirmed: bool = False
+    # Natal
+    moon_sign: str
+    lagna_sign: str
+    birth_nakshatra: str
+    mahadasha_lord: str
+    mahadasha_end_date: str
+    bhukti_lord: str
+    bhukti_end_date: str
+    life_phase: str
+    phase_disposition: str
+    # Daily
+    date: str
+    vara_lord: str
+    tara_name: str
+    tara_number: int
+    tara_favourable: bool
+    chandrabala_house: int
+    chandrabala_favourable: bool
+    day_score: int
+    day_quality: str
+
+
+class DailyProfileResponse(BaseModel):
+    """Merged natal + phase + daily layers for a given date."""
+    date: str
+    # Natal layer
+    moon_sign: str
+    lagna_sign: str
+    birth_nakshatra: str
+    base_disposition: str
+    user_focus: Optional[str] = None
+    focus_confirmed: bool = False
+    mahadasha_lord: str
+    mahadasha_end_date: str
+    bhukti_lord: str
+    bhukti_end_date: str
+    life_phase: str
+    phase_disposition: str
+    # Daily computed layer
+    vara_lord: str
+    tara_name: str
+    tara_number: int
+    tara_favourable: bool
+    chandrabala_house: int
+    chandrabala_favourable: bool
+    day_score: int
+    day_quality: str
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -3904,6 +3983,232 @@ async def update_birth_data(
     await save_user_record(user_id, profile_data)
 
     return UserNatalProfileResponse(**profile_data)
+
+
+# =============================================================================
+# Focus suggestion lookup
+# =============================================================================
+
+_FOCUS_BY_DASHA: dict = {
+    "Sun":     "career",
+    "Moon":    "relationships",
+    "Mars":    "career",
+    "Mercury": "creative",
+    "Jupiter": "inner",
+    "Venus":   "relationships",
+    "Saturn":  "career",
+    "Rahu":    "career",
+    "Ketu":    "inner",
+}
+
+
+def _compute_daily_layers(user_record: dict, for_date_str: str) -> dict:
+    """
+    Compute daily timing layers for a stored user record on a given date.
+    Returns tara, chandrabala, vara, day_score, day_quality.
+    """
+    import pytz
+
+    # Nakshatra name → 1-based number
+    nak_lookup = {n.lower(): i + 1 for i, n in enumerate(NAKSHATRAS)}
+    birth_nak_num = nak_lookup.get(user_record.get("birth_nakshatra", "").lower(), 1)
+
+    # Moon sign → 1-based sign number
+    sign_lookup = {s.lower(): i + 1 for i, s in enumerate(SIGNS)}
+    natal_moon_sign_num = sign_lookup.get(user_record.get("moon_sign", "").lower(), 1)
+
+    # Use birth city for transit computation (good enough for moon sign)
+    location = get_location(user_record.get("birth_city", ""))
+    if location:
+        lat      = location["latitude"]
+        lon      = location["longitude"]
+        tz_name  = location["timezone"]
+    else:
+        lat, lon, tz_name = 0.0, 0.0, "UTC"
+
+    # Transit AstroTime at solar noon on target date
+    transit_dt   = _parse_local_datetime(for_date_str, "12:00", tz_name)
+    transit_time = AstroTime(transit_dt, lat, lon)
+
+    # Transit Moon
+    transit_moon_long = get_planet_longitude(Planet.Moon, transit_time)
+    _, transit_moon_nak_num, _, _ = get_nakshatra(transit_moon_long)
+    _, transit_moon_sign_num = get_rasi(transit_moon_long)
+
+    # Tara Bala
+    tara_name, tara_num = get_tara_bala(birth_nak_num, transit_moon_nak_num)
+    _TARA_GOOD = {2, 4, 6, 8, 9}
+    tara_favourable = tara_num in _TARA_GOOD
+
+    # Chandrabala house
+    chandrabala_house = get_gochara_house(natal_moon_sign_num, transit_moon_sign_num)
+    _CHANDRABALA_GOOD = {1, 3, 6, 7, 10, 11}
+    chandrabala_favourable = chandrabala_house in _CHANDRABALA_GOOD
+
+    # Vara lord from weekday
+    _VARA_LORDS = {0: "Moon", 1: "Mars", 2: "Mercury", 3: "Jupiter", 4: "Venus", 5: "Saturn", 6: "Sun"}
+    target_date = datetime.strptime(for_date_str, "%Y-%m-%d").date()
+    vara_lord = _VARA_LORDS[target_date.weekday()]
+
+    # Day score (0–100): tara 40 + chandrabala 30 + vara 30
+    _BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
+    score = 0
+    if tara_favourable:
+        score += 40
+    elif tara_num == 1:   # Janma tara — mixed
+        score += 20
+    if chandrabala_favourable:
+        score += 30
+    score += 30 if vara_lord in _BENEFICS else 10
+
+    if score >= 70:
+        day_quality = "strong"
+    elif score >= 40:
+        day_quality = "moderate"
+    else:
+        day_quality = "low"
+
+    return {
+        "vara_lord":              vara_lord,
+        "tara_name":              tara_name,
+        "tara_number":            tara_num,
+        "tara_favourable":        tara_favourable,
+        "chandrabala_house":      chandrabala_house,
+        "chandrabala_favourable": chandrabala_favourable,
+        "day_score":              score,
+        "day_quality":            day_quality,
+    }
+
+
+@app.post(
+    "/api/v1/profile/onboard",
+    response_model=OnboardResponse,
+    tags=["Psychic Profile"],
+)
+async def onboard_user(body: OnboardRequest, user_id: str):
+    """
+    Onboard a new user: compute natal chart + dasha from birth data, persist
+    the record, and return the full profile plus an auto-suggested focus area.
+
+    - **user_id**: The user's identifier (query parameter)
+    """
+    city_query = f"{body.birth_city}, {body.birth_country}" if body.birth_country else body.birth_city
+
+    profile_data = _build_natal_profile_data(
+        body.birth_date,
+        body.birth_time,
+        city_query,
+        name=body.name,
+        user_focus=None,
+        focus_confirmed=False,
+    )
+    profile_data["birth_city"] = body.birth_city
+
+    suggested_focus = _FOCUS_BY_DASHA.get(profile_data.get("mahadasha_lord", ""), "career")
+    profile_data["user_focus"] = None       # not confirmed yet
+    profile_data["focus_confirmed"] = False
+
+    await save_user_record(user_id, profile_data)
+
+    return OnboardResponse(**profile_data, suggested_focus=suggested_focus)
+
+
+@app.patch(
+    "/api/v1/profile/focus",
+    response_model=UserNatalProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def update_focus(
+    body: FocusUpdateRequest,
+    user_id: str,
+):
+    """
+    Confirm or update the user's focus area. No astrological recomputation —
+    only the `user_focus` and `focus_confirmed` fields are changed.
+
+    - **user_id**: The user's identifier (query parameter)
+    - **user_focus**: One of: career, relationships, health, creative, inner
+    """
+    if body.user_focus not in _FOCUS_OPTIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid focus '{body.user_focus}'. Must be one of: {', '.join(_FOCUS_OPTIONS)}",
+        )
+
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
+        )
+
+    record["user_focus"]      = body.user_focus
+    record["focus_confirmed"] = True
+    await save_user_record(user_id, record)
+
+    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
+
+
+@app.get(
+    "/api/v1/profile/home",
+    response_model=HomeResponse,
+    tags=["Psychic Profile"],
+)
+async def get_home(
+    user_id: str,
+):
+    """
+    Home screen endpoint. Returns the full natal profile merged with today's
+    timing layers (tara, chandrabala, vara, day score) in a single call.
+
+    - **user_id**: The user's identifier
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
+        )
+
+    today_str   = datetime.now().strftime("%Y-%m-%d")
+    daily_data  = _compute_daily_layers(record, today_str)
+
+    natal_fields = {k: record[k] for k in HomeResponse.model_fields if k in record}
+    return HomeResponse(**natal_fields, date=today_str, **daily_data)
+
+
+@app.get(
+    "/api/v1/profile/daily",
+    response_model=DailyProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def get_daily_profile(
+    user_id: str,
+    date: Optional[str] = None,
+):
+    """
+    Returns the merged natal + phase + daily profile for a given date.
+    This is the input the template engine uses to generate day narratives.
+
+    - **user_id**: The user's identifier
+    - **date**: Target date YYYY-MM-DD (defaults to today)
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
+        )
+
+    target_date_str = date or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(target_date_str, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date must be in YYYY-MM-DD format")
+
+    daily_data   = _compute_daily_layers(record, target_date_str)
+    natal_fields = {k: record[k] for k in DailyProfileResponse.model_fields if k in record}
+    return DailyProfileResponse(**natal_fields, date=target_date_str, **daily_data)
 
 
 # =============================================================================
