@@ -69,6 +69,14 @@ from api.database import (
     save_user_record, get_user_record, invalidate_user_daily_cache,
 )
 
+# New clean route modules
+from api.routes import profile as profile_routes
+from api.routes import dasha as dasha_routes
+from api.routes import gochar as gochar_routes
+from api.routes import daily as daily_routes
+from api.routes import hourly as hourly_routes
+from api.routes import monthly as monthly_routes
+
 # =============================================================================
 # FastAPI App Setup
 # =============================================================================
@@ -106,6 +114,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# =============================================================================
+# Register clean route modules  (v2 endpoints)
+# =============================================================================
+app.include_router(profile_routes.router)
+app.include_router(dasha_routes.router)
+app.include_router(gochar_routes.router)
+app.include_router(daily_routes.router)
+app.include_router(hourly_routes.router)
+app.include_router(monthly_routes.router)
 
 
 def _parse_local_datetime(date_str: str, time_str: str, tz_name: str) -> datetime:
@@ -761,6 +779,91 @@ async def generate_profile(birth_data: BirthData, save: bool = False):
             print(f"Warning: Could not save to database: {e}")
     
     return response
+
+
+@app.get(
+    "/api/v1/profile/home",
+    response_model=HomeResponse,
+    tags=["Psychic Profile"],
+)
+async def get_home(
+    user_id: str,
+):
+    """
+    Home screen endpoint. Returns the full natal profile merged with today's
+    timing layers (tara, chandrabala, vara, day score) in a single call.
+
+    - **user_id**: The user's identifier
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
+        )
+
+    today_str   = datetime.now().strftime("%Y-%m-%d")
+    daily_data  = _compute_daily_layers(record, today_str)
+
+    natal_fields = {k: record[k] for k in HomeResponse.model_fields if k in record}
+    return HomeResponse(**natal_fields, date=today_str, **daily_data)
+
+
+@app.get(
+    "/api/v1/profile/daily",
+    response_model=DailyProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def get_daily_profile(
+    user_id: str,
+    date: Optional[str] = None,
+):
+    """
+    Returns the merged natal + phase + daily profile for a given date.
+    This is the input the template engine uses to generate day narratives.
+
+    - **user_id**: The user's identifier
+    - **date**: Target date YYYY-MM-DD (defaults to today)
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
+        )
+
+    target_date_str = date or datetime.now().strftime("%Y-%m-%d")
+    try:
+        datetime.strptime(target_date_str, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date must be in YYYY-MM-DD format")
+
+    daily_data   = _compute_daily_layers(record, target_date_str)
+    natal_fields = {k: record[k] for k in DailyProfileResponse.model_fields if k in record}
+    return DailyProfileResponse(**natal_fields, date=target_date_str, **daily_data)
+
+
+@app.get(
+    "/api/v1/profile/me",
+    response_model=UserNatalProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def get_my_profile(user_id: str):
+    """
+    Returns the stored natal + phase profile for a user.
+
+    Used by the frontend to retrieve current focus, disposition,
+    life phase, and dasha period without recomputing.
+
+    - **user_id**: The user's identifier
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use PUT /api/v1/profile/birth-data to create one.",
+        )
+    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
 
 
 @app.get("/api/v1/profile/{profile_id}", response_model=PsychicProfileResponse, tags=["Psychic Profile"])
@@ -3911,29 +4014,6 @@ def _build_natal_profile_data(
     }
 
 
-@app.get(
-    "/api/v1/profile/me",
-    response_model=UserNatalProfileResponse,
-    tags=["Psychic Profile"],
-)
-async def get_my_profile(user_id: str):
-    """
-    Returns the stored natal + phase profile for a user.
-
-    Used by the frontend to retrieve current focus, disposition,
-    life phase, and dasha period without recomputing.
-
-    - **user_id**: The user's identifier
-    """
-    record = await get_user_record(user_id)
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No profile found for user '{user_id}'. Use PUT /api/v1/profile/birth-data to create one.",
-        )
-    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
-
-
 @app.put(
     "/api/v1/profile/birth-data",
     response_model=UserNatalProfileResponse,
@@ -4147,68 +4227,6 @@ async def update_focus(
     await save_user_record(user_id, record)
 
     return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
-
-
-@app.get(
-    "/api/v1/profile/home",
-    response_model=HomeResponse,
-    tags=["Psychic Profile"],
-)
-async def get_home(
-    user_id: str,
-):
-    """
-    Home screen endpoint. Returns the full natal profile merged with today's
-    timing layers (tara, chandrabala, vara, day score) in a single call.
-
-    - **user_id**: The user's identifier
-    """
-    record = await get_user_record(user_id)
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
-        )
-
-    today_str   = datetime.now().strftime("%Y-%m-%d")
-    daily_data  = _compute_daily_layers(record, today_str)
-
-    natal_fields = {k: record[k] for k in HomeResponse.model_fields if k in record}
-    return HomeResponse(**natal_fields, date=today_str, **daily_data)
-
-
-@app.get(
-    "/api/v1/profile/daily",
-    response_model=DailyProfileResponse,
-    tags=["Psychic Profile"],
-)
-async def get_daily_profile(
-    user_id: str,
-    date: Optional[str] = None,
-):
-    """
-    Returns the merged natal + phase + daily profile for a given date.
-    This is the input the template engine uses to generate day narratives.
-
-    - **user_id**: The user's identifier
-    - **date**: Target date YYYY-MM-DD (defaults to today)
-    """
-    record = await get_user_record(user_id)
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No profile found for user '{user_id}'. Use POST /api/v1/profile/onboard first.",
-        )
-
-    target_date_str = date or datetime.now().strftime("%Y-%m-%d")
-    try:
-        datetime.strptime(target_date_str, "%Y-%m-%d")
-    except ValueError:
-        raise HTTPException(status_code=422, detail="date must be in YYYY-MM-DD format")
-
-    daily_data   = _compute_daily_layers(record, target_date_str)
-    natal_fields = {k: record[k] for k in DailyProfileResponse.model_fields if k in record}
-    return DailyProfileResponse(**natal_fields, date=target_date_str, **daily_data)
 
 
 # =============================================================================
