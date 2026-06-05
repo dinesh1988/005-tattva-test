@@ -13,10 +13,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query
 
 from logic.daily_prediction import calculate_daily_prediction
-from api.database import get_db, get_profile_by_id, get_daily_prediction, save_daily_prediction
+from api.database import get_profile_by_id, get_daily_prediction, save_daily_prediction
 
 router = APIRouter(prefix="/daily", tags=["daily"])
 
@@ -42,16 +42,16 @@ def _profile_to_daily_args(profile: dict, date_str: str) -> dict:
 async def get_daily(
     profile_id: str,
     date: str = Query(default="", description="YYYY-MM-DD (defaults to today UTC)"),
-    db=Depends(get_db),
 ):
-    profile = await get_profile_by_id(profile_id, db)
+    profile = await get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
     date_str = date or datetime.utcnow().strftime("%Y-%m-%d")
+    user_id = profile.get("user_id", profile_id)
 
     # Check cache
-    cached = await get_daily_prediction(profile_id, date_str, db)
+    cached = get_daily_prediction(user_id, date_str)
     if cached:
         return {**cached, "cached": True}
 
@@ -71,7 +71,7 @@ async def get_daily(
 
     # Persist to DB (fire-and-forget style — ignore save errors)
     try:
-        await save_daily_prediction(profile_id, date_str, result, db)
+        save_daily_prediction(result, user_id, date_str)
     except Exception:
         pass
 

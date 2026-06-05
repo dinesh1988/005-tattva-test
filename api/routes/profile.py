@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import pytz
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -31,7 +31,7 @@ from logic.numerology import get_full_numerology
 from logic.functional_nature import get_functional_nature_categorized
 from logic.varga import get_all_vargas
 from logic.geolocation import get_location, get_coordinates
-from api.database import get_db, save_profile, get_profile_by_id, get_profiles_by_user
+from api.database import save_profile, get_profile_by_id, get_profiles_by_user
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -82,17 +82,17 @@ def _build_natal(req: ProfileRequest) -> dict:
         sign_num = int(lon_val // 30) + 1
         sign = RASIS[sign_num - 1] if 1 <= sign_num <= 12 else "Unknown"
         house = ((sign_num - lagna_sign_num) % 12) + 1
-        nakshatra_info = get_nakshatra(lon_val)
+        nak_name, nak_num, nak_pct, nak_pada = get_nakshatra(lon_val)
         retro = is_planet_retrograde(planet, astro) if planet not in (Planet.Rahu, Planet.Ketu) else False
         planets_data[planet.name] = {
             "longitude": round(lon_val, 4),
             "sign": sign,
             "sign_num": sign_num,
             "house": house,
-            "nakshatra": nakshatra_info.get("nakshatra", ""),
-            "nakshatra_num": nakshatra_info.get("nakshatra_num", 0),
-            "pada": nakshatra_info.get("pada", 0),
-            "nakshatra_percentage": nakshatra_info.get("degree_in_nakshatra_percent", 0),
+            "nakshatra": nak_name,
+            "nakshatra_num": nak_num,
+            "pada": nak_pada,
+            "nakshatra_percentage": round(nak_pct, 2),
             "retrograde": retro,
         }
 
@@ -166,30 +166,30 @@ def _build_natal(req: ProfileRequest) -> dict:
 
 
 @router.post("", summary="Compute and store natal profile (one-time)")
-async def create_profile(req: ProfileRequest, force: bool = False, db=Depends(get_db)):
+async def create_profile(req: ProfileRequest, force: bool = False):
     # Return existing profile unless force=true
     if not force:
-        existing = await get_profiles_by_user(req.user_id, db)
+        existing = await get_profiles_by_user(req.user_id)
         # Match by birth date + city
         for p in existing:
             if p.get("birth_date") == req.birth_date and p.get("birth_city", "").lower() == req.birth_city.lower():
                 return {"profile_id": p["id"], "cached": True, "profile": p}
 
     natal = _build_natal(req)
-    profile_id = await save_profile(natal, req.user_id, db)
+    profile_id = await save_profile(natal, req.user_id)
     natal["id"] = profile_id
     return {"profile_id": profile_id, "cached": False, "profile": natal}
 
 
 @router.get("/{profile_id}", summary="Fetch stored profile by ID")
-async def get_profile(profile_id: str, db=Depends(get_db)):
-    profile = await get_profile_by_id(profile_id, db)
+async def get_profile(profile_id: str):
+    profile = await get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
 
 
 @router.get("/user/{user_id}", summary="List all profiles for a user")
-async def list_profiles(user_id: str, db=Depends(get_db)):
-    profiles = await get_profiles_by_user(user_id, db)
+async def list_profiles(user_id: str):
+    profiles = await get_profiles_by_user(user_id)
     return {"profiles": profiles, "count": len(profiles)}

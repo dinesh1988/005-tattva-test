@@ -501,6 +501,13 @@ class DailyProfileResponse(BaseModel):
 # Health Check Endpoints
 # =============================================================================
 
+@app.get("/debug/routes", tags=["Health"])
+async def debug_routes():
+    """List all registered route paths."""
+    paths = sorted([r.path for r in app.routes if hasattr(r, "path")])
+    return {"route_count": len(paths), "routes": paths}
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint for Cloud Run."""
@@ -513,7 +520,7 @@ async def health_check():
             "build_id": BUILD_ID,
             "environment": ENVIRONMENT,
             "yogas": 115,
-            "modules": 18
+            "modules": 19
         }
     )
 

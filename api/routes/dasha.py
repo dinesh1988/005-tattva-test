@@ -12,10 +12,10 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from datetime import datetime, date
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query
 
 from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_schedule, DASA_LORDS
-from api.database import get_db, get_profile_by_id
+from api.database import get_profile_by_id
 
 router = APIRouter(prefix="/dasha", tags=["dasha"])
 
@@ -46,9 +46,8 @@ def _find_active_period(schedule: dict, target: datetime) -> dict:
 async def get_dasha(
     profile_id: str,
     date: str = Query(default="", description="YYYY-MM-DD (defaults to today)"),
-    db=Depends(get_db),
 ):
-    profile = await get_profile_by_id(profile_id, db)
+    profile = await get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import calendar
 import pytz
 from datetime import datetime, date
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query
 
 from logic.calculate import get_planet_longitude
 from logic.time import AstroTime
@@ -22,7 +22,7 @@ from logic.consts import Planet
 from logic.rasi import get_rasi
 from logic.nakshatra import get_nakshatra, get_tara_bala
 from logic.rasi import get_gochara_house
-from api.database import get_db, get_profile_by_id, get_daily_prediction
+from api.database import get_profile_by_id, get_daily_prediction
 
 router = APIRouter(prefix="/monthly", tags=["monthly"])
 
@@ -89,9 +89,8 @@ async def get_monthly(
     profile_id: str,
     year: int = Query(..., description="4-digit year"),
     month: int = Query(..., ge=1, le=12, description="Month 1-12"),
-    db=Depends(get_db),
 ):
-    profile = await get_profile_by_id(profile_id, db)
+    profile = await get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -103,7 +102,7 @@ async def get_monthly(
         date_str = f"{year:04d}-{month:02d}-{day:02d}"
 
         # Use cached daily prediction if available
-        cached = await get_daily_prediction(profile_id, date_str, db)
+        cached = get_daily_prediction(profile_id, date_str)
         if cached:
             mood_house = cached.get("mood", {}).get("house", 6)
             fuel_level = cached.get("fuel", {}).get("level", "Moderate")
