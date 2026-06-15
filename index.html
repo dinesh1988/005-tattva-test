@@ -2820,7 +2820,7 @@
 
             { type: 'function', function: { name: 'mcp_get_birth_yogas',
 
-                description: 'Identify 44 classical Vedic birth yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, wealth yogas, etc.',
+                description: 'Identify 244 classical Vedic birth yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, wealth yogas, etc.',
 
                 parameters: { type: 'object', properties: {
 
@@ -4198,7 +4198,7 @@ ${profilesText}`;
 
                 dasa: { mahadasa: profileResult.dasa?.mahadasa, bhukti: profileResult.dasa?.bhukti, life_stage: profileResult.dasa?.life_stage, prediction_note: profileResult.dasa?.prediction_note },
 
-                yogas: profileResult.yogas,
+                yogas: Array.isArray(profileResult.yogas) ? profileResult.yogas.filter(y => y.occurring === true || y.present === true) : profileResult.yogas,
 
                 numerology: profileResult.numerology,
 
@@ -4214,7 +4214,7 @@ ${profilesText}`;
 
                 },
 
-                prediction_framework: profileResult.prediction_framework
+                prediction_framework: filterYogasFromResult(profileResult).prediction_framework
 
             };
 
@@ -4280,7 +4280,7 @@ ${profilesText}`;
 
                 dasa: { mahadasa: profileResult.dasa.mahadasa, bhukti: profileResult.dasa.bhukti, life_stage: profileResult.dasa.life_stage, prediction_note: profileResult.dasa.prediction_note },
 
-                yogas: profileResult.yogas,
+                yogas: Array.isArray(profileResult.yogas) ? profileResult.yogas.filter(y => y.occurring === true || y.present === true) : profileResult.yogas,
 
                 numerology: profileResult.numerology,
 
@@ -4296,7 +4296,7 @@ ${profilesText}`;
 
                 },
 
-                prediction_framework: profileResult.prediction_framework
+                prediction_framework: filterYogasFromResult(profileResult).prediction_framework
 
             };
 
@@ -4445,7 +4445,7 @@ ${profilesText}`;
 
 ### YOGAS & PLANETARY STRENGTH
 
-- mcp_get_birth_yogas — 44 classical yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, Neecha Bhanga, etc.
+- mcp_get_birth_yogas — 244 classical yogas: Pancha Mahapurusha, GajaKesari, Viparita Raja, Neecha Bhanga, etc.
 
 - mcp_get_yoga_summary — Quick count: total/active/benefic/malefic/mixed yogas by category
 
@@ -6427,6 +6427,92 @@ ${TOOL_GUIDE}`;
 
         
 
+        function filterYogasFromResult(r) {
+            if (!r) return r;
+            const yogaFilter = y => y.occurring === true || y.present === true;
+
+            // Strip divisional chart keys (d2–d60) and empty interpretation fields from a planet object
+            const cleanPlanet = p => {
+                if (!p) return p;
+                const keep = ['planet','longitude','degrees_in_sign','retrograde','rasi','rasi_num','house','nakshatra','pada'];
+                const clean = {};
+                keep.forEach(k => { if (k in p) clean[k] = p[k]; });
+                return clean;
+            };
+
+            // Strip empty interpretation fields from lagna
+            const cleanLagna = l => {
+                if (!l) return l;
+                const { vargas, interpretation, ...rest } = l;
+                return rest;
+            };
+
+            // Clean a planet interpretation block of empty fields
+            const cleanInterpretation = interp => {
+                if (!interp) return interp;
+                const out = {};
+                Object.keys(interp).forEach(k => {
+                    const v = interp[k];
+                    if (v === '' || (Array.isArray(v) && v.length === 0)) return;
+                    out[k] = v;
+                });
+                return Object.keys(out).length ? out : undefined;
+            };
+
+            const out = Object.assign({}, r);
+
+            // 1. Filter top-level yogas to only true ones
+            if (Array.isArray(out.yogas)) out.yogas = out.yogas.filter(yogaFilter);
+
+            // 2. Keep full dasa (full_schedule retained)
+
+            // 3. Strip shadbala_detailed (summarised in shadbala_summary in compact view)
+            if (out.shadbala_detailed) delete out.shadbala_detailed;
+
+            // 4. Clean birth_chart planets — remove divisional charts + empty fields
+            if (out.birth_chart) {
+                out.birth_chart = Object.assign({}, out.birth_chart);
+                if (out.birth_chart.lagna) out.birth_chart.lagna = cleanLagna(out.birth_chart.lagna);
+                if (Array.isArray(out.birth_chart.planets)) {
+                    out.birth_chart.planets = out.birth_chart.planets.map(p => {
+                        const cp = cleanPlanet(p);
+                        if (p.interpretation) {
+                            const ci = cleanInterpretation(p.interpretation);
+                            if (ci) cp.interpretation = ci;
+                        }
+                        return cp;
+                    });
+                }
+            }
+
+            // 5. Clean prediction_framework life area predictions
+            if (out.prediction_framework && out.prediction_framework.life_area_predictions) {
+                const pf = Object.assign({}, out.prediction_framework);
+                const laps = Object.assign({}, pf.life_area_predictions);
+                Object.keys(laps).forEach(area => {
+                    if (!laps[area]) return;
+                    const lap = Object.assign({}, laps[area]);
+                    // Filter relevant_yogas to true only
+                    if (Array.isArray(lap.relevant_yogas)) {
+                        lap.relevant_yogas = lap.relevant_yogas.filter(yogaFilter);
+                    }
+                    // Replace relevant_planets with slim versions (no divisional charts)
+                    if (Array.isArray(lap.relevant_planets)) {
+                        lap.relevant_planets = lap.relevant_planets.map(cleanPlanet);
+                    }
+                    // Remove lagna_strength (duplicate of birth_chart.lagna)
+                    if (lap.lagna_strength) delete lap.lagna_strength;
+                    // Remove psychic_profile (duplicate of top-level psychic_profile)
+                    if (lap.psychic_profile) delete lap.psychic_profile;
+                    laps[area] = lap;
+                });
+                pf.life_area_predictions = laps;
+                out.prediction_framework = pf;
+            }
+
+            return out;
+        }
+
         function copyJsonToClipboard(event) {
 
             const jsonText = document.getElementById('raw_json').textContent;
@@ -6565,7 +6651,9 @@ ${TOOL_GUIDE}`;
 
                     // If the API changed shape, make it easy to debug by showing raw JSON.
 
-                    document.getElementById('raw_json').textContent = rawText || JSON.stringify(result, null, 2);
+                    const _fbObj = rawText ? (() => { try { return JSON.parse(rawText); } catch(_){return result;} })() : result;
+                    const _fbFiltered = filterYogasFromResult(_fbObj);
+                    document.getElementById('raw_json').textContent = JSON.stringify(_fbFiltered, null, 2);
 
                     throw new Error(`UI render error: ${renderErr && renderErr.message ? renderErr.message : String(renderErr)} (API returned OK)`);
 
@@ -6795,9 +6883,9 @@ ${TOOL_GUIDE}`;
 
             
 
-            // Raw JSON
+            // Raw JSON -- only occurring yogas
 
-            document.getElementById('raw_json').textContent = JSON.stringify(result, null, 2);
+            document.getElementById('raw_json').textContent = JSON.stringify(filterYogasFromResult(result), null, 2);
 
             
 

@@ -226,6 +226,7 @@ def get_functional_nature_categorized(lagna_num: int) -> dict:
     
     benefics = []
     malefics = []
+    mixed = []
     neutrals = []
     yogakaraka = None
     
@@ -245,10 +246,13 @@ def get_functional_nature_categorized(lagna_num: int) -> dict:
         elif 'Functional Benefic' in nature:
             benefics.append(planet)
         # Functional Malefic
-        elif 'Functional Malefic' in nature or 'Malefic' in nature:
+        elif 'Functional Malefic' in nature or ('Malefic' in nature and 'Mixed' not in nature):
             malefics.append(planet)
-        # Mixed or Neutral
-        elif 'Mixed' in nature or 'Neutral' in nature:
+        # Mixed (rules both good and dusthana houses)
+        elif 'Mixed' in nature:
+            mixed.append(planet)
+        # Neutral (Kendradhipati Dosha or plain Neutral)
+        elif 'Neutral' in nature:
             neutrals.append(planet)
         else:
             # Default to neutral if unclear
@@ -257,6 +261,7 @@ def get_functional_nature_categorized(lagna_num: int) -> dict:
     return {
         'benefics': benefics,
         'malefics': malefics,
+        'mixed': mixed,
         'neutrals': neutrals,
         'yogakaraka': yogakaraka
     }

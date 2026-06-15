@@ -69,14 +69,6 @@ from api.database import (
     save_user_record, get_user_record, invalidate_user_daily_cache,
 )
 
-# New clean route modules
-from api.routes import profile as profile_routes
-from api.routes import dasha as dasha_routes
-from api.routes import gochar as gochar_routes
-from api.routes import daily as daily_routes
-from api.routes import hourly as hourly_routes
-from api.routes import monthly as monthly_routes
-
 # =============================================================================
 # FastAPI App Setup
 # =============================================================================
@@ -114,16 +106,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# =============================================================================
-# Register clean route modules  (v2 endpoints)
-# =============================================================================
-app.include_router(profile_routes.router)
-app.include_router(dasha_routes.router)
-app.include_router(gochar_routes.router)
-app.include_router(daily_routes.router)
-app.include_router(hourly_routes.router)
-app.include_router(monthly_routes.router)
 
 
 def _parse_local_datetime(date_str: str, time_str: str, tz_name: str) -> datetime:
@@ -501,13 +483,6 @@ class DailyProfileResponse(BaseModel):
 # Health Check Endpoints
 # =============================================================================
 
-@app.get("/debug/routes", tags=["Health"])
-async def debug_routes():
-    """List all registered route paths."""
-    paths = sorted([r.path for r in app.routes if hasattr(r, "path")])
-    return {"route_count": len(paths), "routes": paths}
-
-
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint for Cloud Run."""
@@ -519,7 +494,7 @@ async def health_check():
             "version": APP_VERSION,
             "build_id": BUILD_ID,
             "environment": ENVIRONMENT,
-            "yogas": 115,
+            "yogas": 244,
             "modules": 19
         }
     )
@@ -850,29 +825,6 @@ async def get_daily_profile(
     return DailyProfileResponse(**natal_fields, date=target_date_str, **daily_data)
 
 
-@app.get(
-    "/api/v1/profile/me",
-    response_model=UserNatalProfileResponse,
-    tags=["Psychic Profile"],
-)
-async def get_my_profile(user_id: str):
-    """
-    Returns the stored natal + phase profile for a user.
-
-    Used by the frontend to retrieve current focus, disposition,
-    life phase, and dasha period without recomputing.
-
-    - **user_id**: The user's identifier
-    """
-    record = await get_user_record(user_id)
-    if not record:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No profile found for user '{user_id}'. Use PUT /api/v1/profile/birth-data to create one.",
-        )
-    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
-
-
 @app.get("/api/v1/profile/{profile_id}", response_model=PsychicProfileResponse, tags=["Psychic Profile"])
 async def get_profile(profile_id: str):
     """
@@ -979,6 +931,8 @@ async def get_complete_profile(birth_data: BirthData):
     
     # Helper function for rasi interpretations
     def get_rasi_interpretation(rasi_name, planet_name=None):
+        # RASIS list includes Sanskrit e.g. "Sagittarius (Dhanu)" — strip to plain English key
+        rasi_name = rasi_name.split('(')[0].strip()
         interpretations = {
             'Aries': {'element': 'Fire', 'quality': 'Cardinal', 'traits': ['Bold', 'Pioneering', 'Energetic', 'Impulsive'], 'areas': ['Leadership', 'Initiative', 'Action']},
             'Taurus': {'element': 'Earth', 'quality': 'Fixed', 'traits': ['Stable', 'Practical', 'Sensual', 'Stubborn'], 'areas': ['Finance', 'Resources', 'Comfort']},
@@ -1355,7 +1309,7 @@ async def get_complete_profile(birth_data: BirthData):
         'immediate_influences': {
             'current_dasa': dasa_interpretation.get('mahadasa', {}),
             'current_antardasa': dasa_interpretation.get('bhukti', {}),
-            'active_yogas': active_yogas[:3]
+            'active_yogas': active_yogas  # full list, not truncated
         },
         'life_area_predictions': {
             'career': {
@@ -1433,7 +1387,7 @@ async def get_complete_profile(birth_data: BirthData):
         'ashtakavarga': ashtakavarga,
         'functional_nature': functional_nature,
         'functional_nature_detailed': functional_nature_detailed,
-        'shadbala': shadbala,  # Simple ratios for prediction algorithms
+        'shadbala_ratio': shadbala,  # Strength ratios (actual/required): >1.0 = strong, <1.0 = weak
         'shadbala_detailed': shadbala_detailed,  # Detailed strength analysis
         'prediction_framework': prediction_framework,
         'generated_at': datetime.now().isoformat(),
@@ -4019,6 +3973,29 @@ def _build_natal_profile_data(
         "life_phase":         life_phase,
         "phase_disposition":  phase_disposition,
     }
+
+
+@app.get(
+    "/api/v1/profile/me",
+    response_model=UserNatalProfileResponse,
+    tags=["Psychic Profile"],
+)
+async def get_my_profile(user_id: str):
+    """
+    Returns the stored natal + phase profile for a user.
+
+    Used by the frontend to retrieve current focus, disposition,
+    life phase, and dasha period without recomputing.
+
+    - **user_id**: The user's identifier
+    """
+    record = await get_user_record(user_id)
+    if not record:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No profile found for user '{user_id}'. Use PUT /api/v1/profile/birth-data to create one.",
+        )
+    return UserNatalProfileResponse(**{k: record[k] for k in UserNatalProfileResponse.model_fields if k in record})
 
 
 @app.put(
