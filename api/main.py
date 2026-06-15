@@ -48,13 +48,13 @@ from logic.nakshatra import get_nakshatra, get_tara_bala, NAKSHATRAS
 from logic.sunrise import get_sun_times
 from logic.dasa import get_vimshottari_dasa, get_vimshottari_dasa_full, get_vimshottari_dasa_schedule
 from logic.dasa_interpretations import get_pd1_interpretation, get_pd2_interpretation, get_pd3_interpretation
-from logic.varga import get_all_vargas
+from logic.varga import get_all_vargas, get_d9_navamsa
 from logic.numerology import get_full_numerology, get_name_number_prediction
 from logic.daily_prediction import calculate_daily_prediction
 from logic.rasi import RASIS, get_rasi, get_gochara_house
 from logic.ashtakavarga import get_all_bhinnashtakavarga, get_sarvashtakavarga_points
 from logic.functional_nature import get_functional_nature, get_functional_nature_categorized
-from logic.shadbala import get_shadbala_summary, get_shadbala_ratios
+from logic.shadbala import get_shadbala_summary, get_shadbala_ratios, get_shadbala_pinda, datetime_to_jd
 from logic.vedha import calculate_vedha_status
 from logic.gochara import get_gochara_predictions, get_gochara_summary, get_gochara_prediction
 from logic.planet_in_house import get_all_planet_in_house_interpretations
@@ -1224,27 +1224,8 @@ async def get_complete_profile(birth_data: BirthData):
         'full_schedule': dasa_schedule  # Complete 120-year timeline
     }
     
-    # 5. YOGAS with detailed interpretations
-    yogas = get_all_yogas(astro_time)
-    yogas_enhanced = []
-    for yoga in yogas:
-        # Convert Yoga object to dict with enhancements
-        yoga_dict = {
-            'name': yoga.name,
-            'present': yoga.occurring,
-            'nature': yoga.nature.value if hasattr(yoga.nature, 'value') else str(yoga.nature),
-            'description': yoga.description,
-            'condition': yoga.condition,
-            'strength': yoga.strength if yoga.strength else 0,
-            'category': 'Wealth' if any(x in yoga.name for x in ['Lakshmi', 'Vasumathi', 'Chatussagara', 'Parvata']) else 
-                        'Raja' if 'Raja' in yoga.name else
-                        'Moon' if any(x in yoga.name for x in ['GajaKesari', 'Sunapha', 'Anapha', 'Dhurdhura']) else
-                        'Mahapurusha' if any(x in yoga.name for x in ['Bhadra', 'Hamsa', 'Malavya', 'Ruchaka', 'Sasha']) else 'Other',
-            'life_impact': f"Affects {yoga.nature.value if hasattr(yoga.nature, 'value') else 'general'} aspects of life",
-            'timing': 'Active throughout life, especially during related dasa periods',
-            'prediction_value': 'High' if yoga.occurring else 'Low'
-        }
-        yogas_enhanced.append(yoga_dict)
+    # 5. YOGAS — raw objects collected now; enriched after all supporting data is ready
+    yogas_raw = get_all_yogas(astro_time)
     
     # 6. NUMEROLOGY
     from logic.numerology import get_full_numerology
@@ -1282,10 +1263,235 @@ async def get_complete_profile(birth_data: BirthData):
     # Convert astro_time back to datetime for shadbala calculation
     shadbala_detailed = get_shadbala_summary(birth_datetime_tz, lat, lon)
     shadbala = get_shadbala_ratios(birth_datetime_tz, lat, lon)  # Simple ratios for predictions
-    
+
+    # --- Pre-compute per-planet D9 sign (navamsha) for yoga enrichment ---
+    _jd_birth = datetime_to_jd(birth_datetime_tz)
+    _planet_d9 = {}
+    _planet_shadbala_pinda = {}
+    _SHADBALA_PLANETS = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']
+    from logic.consts import Planet as _Planet
+    _planet_enum_map = {
+        'Sun': _Planet.Sun, 'Moon': _Planet.Moon, 'Mars': _Planet.Mars,
+        'Mercury': _Planet.Mercury, 'Jupiter': _Planet.Jupiter,
+        'Venus': _Planet.Venus, 'Saturn': _Planet.Saturn,
+        'Rahu': _Planet.Rahu, 'Ketu': _Planet.Ketu
+    }
+    for _pname, _pobj in _planet_enum_map.items():
+        try:
+            _plong = get_planet_longitude(_pobj, astro_time)
+            _d9_sign, _d9_num = get_d9_navamsa(_plong)
+            _planet_d9[_pname] = _d9_sign.split('(')[0].strip()
+        except Exception:
+            _planet_d9[_pname] = None
+    for _pname in _SHADBALA_PLANETS:
+        try:
+            _planet_shadbala_pinda[_pname] = get_shadbala_pinda(_pname, _jd_birth, lat, lon)
+        except Exception:
+            _planet_shadbala_pinda[_pname] = None
+
+    # Retrograde effect templates (per planet)
+    _RETRO_EFFECTS = {
+        'Sun':     'Yoga is deeply internalized — solar confidence and authority develop later in life rather than being innate. Leadership emerges through earned respect rather than natural charisma.',
+        'Moon':    'Yoga is emotionally intense but inwardly directed — the mind processes deeply before expressing. Emotional gifts are strong but may not be visible to others early in life.',
+        'Mars':    'Yoga energy is redirected inward — courage and drive are present but may manifest as caution, perfectionism, or delayed action before breaking through decisively.',
+        'Mercury': 'Yoga is felt strongly within — analytical depth, precision, internal intelligence — but outward expression is delayed or unconventional. Intellectual gifts develop and deepen over time.',
+        'Jupiter': 'Yoga wisdom is earned through experience rather than given naturally. Philosophical depth and fortune come later in life; the native may question faith before fully embracing it.',
+        'Venus':   'Yoga qualities are refined and selective — relationships and artistic gifts are felt deeply but expressed carefully. Romantic and material fulfillment comes after deliberate choice.',
+        'Saturn':  'Yoga discipline and karmic lessons are amplified. The native may over-apply structure or face delays before breakthrough. Results are profound but come with significant effort and time.',
+    }
+
+    # D9 own-sign / friendly sign lookup (simplified)
+    _D9_OWN_SIGNS = {
+        'Sun': ['Leo'], 'Moon': ['Cancer'], 'Mars': ['Aries', 'Scorpio'],
+        'Mercury': ['Gemini', 'Virgo'], 'Jupiter': ['Sagittarius', 'Pisces'],
+        'Venus': ['Taurus', 'Libra'], 'Saturn': ['Capricorn', 'Aquarius']
+    }
+    _D9_FRIENDLY = {
+        'Sun': ['Aries', 'Sagittarius', 'Scorpio', 'Pisces'],
+        'Moon': ['Taurus', 'Pisces', 'Sagittarius'],
+        'Mars': ['Capricorn', 'Cancer', 'Leo'],
+        'Mercury': ['Taurus', 'Libra', 'Aquarius'],
+        'Jupiter': ['Cancer', 'Leo', 'Aries'],
+        'Venus': ['Capricorn', 'Aquarius', 'Pisces', 'Cancer'],
+        'Saturn': ['Taurus', 'Libra', 'Gemini', 'Virgo', 'Aquarius'],
+    }
+
+    def _yoga_d9_check(planet_name, d9_sign):
+        if not d9_sign or planet_name not in _D9_OWN_SIGNS:
+            return None, 'No D9 data available.'
+        own = _D9_OWN_SIGNS[planet_name]
+        friendly = _D9_FRIENDLY.get(planet_name, [])
+        if d9_sign in own:
+            return True, f'{planet_name} in D9 {d9_sign} — own sign. Strong confirmation. Yoga qualities are deeply embedded at soul level.'
+        elif d9_sign in friendly:
+            return True, f'{planet_name} in D9 {d9_sign} — friendly sign. Partial confirmation. Yoga gifts present at soul level, may not be primary expression.'
+        else:
+            return False, f'{planet_name} in D9 {d9_sign} — neutral/unfriendly. Yoga may deliver material results but lacks deep dharmic reinforcement.'
+
+    # Build dasa activation lookup from full_schedule
+    _dasa_activation_cache = {}
+    for _md in dasa_interpretation.get('full_schedule', []):
+        _md_planet = _md.get('planet')
+        if _md_planet and _md_planet not in _dasa_activation_cache:
+            _md_start = _md.get('start_date', 'N/A')
+            _md_end   = _md.get('end_date',   'N/A')
+            _now_str  = str(current_year)
+            try:
+                _is_active = _md.get('start_date', '9999') <= _now_str <= _md.get('end_date', '0000')
+            except Exception:
+                _is_active = False
+            _md_bhuktis = _md.get('bhuktis', [])
+            _cur_bhukti = None
+            for _bk in _md_bhuktis:
+                try:
+                    if _bk.get('start_date', '9999') <= _now_str <= _bk.get('end_date', '0000'):
+                        _cur_bhukti = _bk
+                        break
+                except Exception:
+                    pass
+            _peak_bhukti = next((_bk for _bk in _md_bhuktis if _bk.get('planet') == _md_planet), None)
+            _dasa_activation_cache[_md_planet] = {
+                'primary_dasha': _md_planet,
+                'period': f"{_md_start} to {_md_end}",
+                'status': 'ACTIVE NOW' if _is_active else ('PAST' if _md_end < _now_str else 'FUTURE'),
+                'antardasha_peak': (
+                    f"{_md_planet}-{_peak_bhukti['planet']}: "
+                    f"{_peak_bhukti.get('start_date','?')} to {_peak_bhukti.get('end_date','?')}"
+                ) if _peak_bhukti else None,
+                'current_antardasha': (
+                    f"{_md_planet}-{_cur_bhukti['planet']}: "
+                    f"{_cur_bhukti.get('start_date','?')} to {_cur_bhukti.get('end_date','?')}"
+                ) if _cur_bhukti else None,
+            }
+
+    # Retrograde planet set from planets_data
+    _retro_planets = {p['planet'] for p in planets_data if p.get('retrograde')}
+
+    # Life area mapping by yoga category / planet
+    _LIFE_AREA_MAP = {
+        'Wealth': 'Finance, Prosperity, Resources',
+        'Raja': 'Power, Status, Career, Recognition',
+        'Moon': 'Mind, Emotions, Relationships',
+        'Mahapurusha': 'Intelligence, Character, Mastery',
+        'Other': 'General Life Quality',
+    }
+
+    # 5b. BUILD ENRICHED YOGAS (now that all supporting data is available)
+    yogas_enhanced = []
+    for yoga in yogas_raw:
+        base_strength = yoga.strength if yoga.strength else 0
+        yoga_nature_str = yoga.nature.value if hasattr(yoga.nature, 'value') else str(yoga.nature)
+
+        category = (
+            'Wealth'        if any(x in yoga.name for x in ['Lakshmi', 'Vasumathi', 'Chatussagara', 'Parvata', 'Dhana', 'Dhana']) else
+            'Raja'          if 'Raja' in yoga.name else
+            'Moon'          if any(x in yoga.name for x in ['GajaKesari', 'Sunapha', 'Anapha', 'Dhurdhura']) else
+            'Mahapurusha'   if any(x in yoga.name for x in ['Bhadra', 'Hamsa', 'Malavya', 'Ruchaka', 'Sasha']) else 'Other'
+        )
+
+        # --- Forming planets: extract from condition string heuristically ---
+        _known_planets = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu']
+        forming_planets = [p for p in _known_planets if p in (yoga.condition or '')]
+
+        # --- Retrograde analysis ---
+        retro_forming = [p for p in forming_planets if p in _retro_planets]
+        retro_penalty = len(retro_forming) * 10  # -10 per retrograde forming planet
+        effective_strength = max(0, base_strength - retro_penalty)
+        retro_note = (
+            f"Reduced from {base_strength} — "
+            + '; '.join(f"{p} retrograde internalizes expression" for p in retro_forming)
+        ) if retro_forming else None
+        retro_effect = '; '.join(_RETRO_EFFECTS.get(p, '') for p in retro_forming if p in _RETRO_EFFECTS) or None
+
+        # --- Shadbala support (for forming planets that have shadbala) ---
+        shadbala_support = {}
+        for fp in forming_planets:
+            _sb = _planet_shadbala_pinda.get(fp)
+            if _sb:
+                shadbala_support[fp] = {
+                    'rupas': _sb['total_rupas'],
+                    'required': _sb['required_rupas'],
+                    'is_strong': _sb['is_strong'],
+                    'ratio': _sb['strength_ratio'],
+                }
+        if shadbala_support:
+            _strong_count = sum(1 for v in shadbala_support.values() if v['is_strong'])
+            _total_count  = len(shadbala_support)
+            if _strong_count == _total_count:
+                shadbala_assessment = 'Strong — all forming planets exceed required threshold. Yoga fires reliably.'
+            elif _strong_count > 0:
+                shadbala_assessment = f'Mixed — {_strong_count}/{_total_count} forming planets are strong. Yoga delivers partially.'
+            else:
+                shadbala_assessment = 'Weak — forming planets below required strength. Yoga struggles to manifest fully.'
+        else:
+            shadbala_assessment = None
+
+        # --- D9 confirmation (first forming planet that has shadbala, i.e. not Rahu/Ketu) ---
+        d9_confirmed, d9_note = None, None
+        for fp in forming_planets:
+            if fp in _SHADBALA_PLANETS:
+                d9_confirmed, d9_note = _yoga_d9_check(fp, _planet_d9.get(fp))
+                break
+
+        # --- House SAV score (derive house from condition string — look for 'house N' or 'HN') ---
+        import re as _re
+        _house_match = _re.search(r'(?:house|H)[\s]?(\d+)', yoga.condition or '')
+        house_sav_score = None
+        if _house_match:
+            _h = int(_house_match.group(1))
+            if 1 <= _h <= 12:
+                _sav_pts = sav_data.get(_h, 0)
+                house_sav_score = {
+                    'house': _h,
+                    'score': _sav_pts,
+                    'rating': 'Strong' if _sav_pts >= 28 else ('Average' if _sav_pts >= 25 else 'Weak'),
+                    'note': (
+                        f"H{_h} SAV {_sav_pts} — above 28 threshold. Yoga's house is well-supported. Results will manifest."
+                        if _sav_pts >= 28 else
+                        f"H{_h} SAV {_sav_pts} — below 28. House support is limited; yoga results may be inconsistent."
+                    )
+                }
+
+        # --- Functional nature of first forming planet ---
+        fn_planet = forming_planets[0] if forming_planets else None
+        fn_info = functional_nature_detailed.get(fn_planet) if fn_planet else None
+        fn_classification = fn_info['nature'] if fn_info else None
+        fn_note = fn_info['reason'] if fn_info else None
+
+        # --- Dasa activation ---
+        dasha_activation = _dasa_activation_cache.get(fn_planet) if fn_planet else None
+
+        yoga_dict = {
+            'name': yoga.name,
+            'present': yoga.occurring,
+            'nature': yoga_nature_str,
+            'description': yoga.description,
+            'condition': yoga.condition,
+            'strength': base_strength,
+            'effective_strength': effective_strength,
+            'effective_strength_note': retro_note,
+            'category': category,
+            'life_area': _LIFE_AREA_MAP.get(category, 'General Life Quality'),
+            'forming_planets': forming_planets,
+            'retrograde_forming_planets': retro_forming,
+            'retrograde_effect': retro_effect,
+            'shadbala_support': shadbala_support if shadbala_support else None,
+            'shadbala_assessment': shadbala_assessment,
+            'd9_confirmed': d9_confirmed,
+            'd9_note': d9_note,
+            'house_sav_score': house_sav_score,
+            'functional_nature': fn_classification,
+            'functional_nature_note': fn_note,
+            'dasha_activation': dasha_activation,
+            'cancellation': None,
+            'conflicts': None,
+            'prediction_value': 'High' if yoga.occurring else 'Low',
+        }
+        yogas_enhanced.append(yoga_dict)
+
     # 10. EXECUTIVE SUMMARY for LLMs
     active_yogas = [y['name'] for y in yogas_enhanced if y.get('present', False)]
-    
+
     executive_summary = {
         'personality_overview': f"{birth_data.name} is a {lagna_rasi} rising individual with {sun_sign} Sun and {moon_sign} Moon. Their personality blends {lagna_interp.get('element', '')} element qualities with {', '.join(lagna_interp.get('traits', [])[:2])} traits.",
         'core_strengths': lagna_interp.get('traits', [])[:3],
