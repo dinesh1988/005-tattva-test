@@ -1330,12 +1330,13 @@ async def get_complete_profile(birth_data: BirthData):
 
     # Build dasa activation lookup from full_schedule
     _dasa_activation_cache = {}
-    for _md in dasa_interpretation.get('full_schedule', []):
-        _md_planet = _md.get('planet')
+    _full_sched_list = dasa_interpretation.get('full_schedule', {}).get('maha_dasas', [])
+    for _md in _full_sched_list:
+        _md_planet = _md.get('dasa_lord')
         if _md_planet and _md_planet not in _dasa_activation_cache:
             _md_start = _md.get('start_date', 'N/A')
             _md_end   = _md.get('end_date',   'N/A')
-            _now_str  = str(current_year)
+            _now_str  = datetime.now().strftime('%Y-%m-%d')
             try:
                 _is_active = _md.get('start_date', '9999') <= _now_str <= _md.get('end_date', '0000')
             except Exception:
@@ -1349,17 +1350,17 @@ async def get_complete_profile(birth_data: BirthData):
                         break
                 except Exception:
                     pass
-            _peak_bhukti = next((_bk for _bk in _md_bhuktis if _bk.get('planet') == _md_planet), None)
+            _peak_bhukti = next((_bk for _bk in _md_bhuktis if _bk.get('bhukti_lord') == _md_planet), None)
             _dasa_activation_cache[_md_planet] = {
                 'primary_dasha': _md_planet,
                 'period': f"{_md_start} to {_md_end}",
                 'status': 'ACTIVE NOW' if _is_active else ('PAST' if _md_end < _now_str else 'FUTURE'),
                 'antardasha_peak': (
-                    f"{_md_planet}-{_peak_bhukti['planet']}: "
+                    f"{_md_planet}-{_peak_bhukti['bhukti_lord']}: "
                     f"{_peak_bhukti.get('start_date','?')} to {_peak_bhukti.get('end_date','?')}"
                 ) if _peak_bhukti else None,
                 'current_antardasha': (
-                    f"{_md_planet}-{_cur_bhukti['planet']}: "
+                    f"{_md_planet}-{_cur_bhukti['bhukti_lord']}: "
                     f"{_cur_bhukti.get('start_date','?')} to {_cur_bhukti.get('end_date','?')}"
                 ) if _cur_bhukti else None,
             }
