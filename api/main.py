@@ -1377,9 +1377,11 @@ async def get_complete_profile(birth_data: BirthData):
         'Other': 'General Life Quality',
     }
 
-    # 5b. BUILD ENRICHED YOGAS (now that all supporting data is available)
+    # 5b. BUILD ENRICHED YOGAS — active only (occurring=True); inactive are filtered by frontend anyway
     yogas_enhanced = []
     for yoga in yogas_raw:
+        if not yoga.occurring:
+            continue
         base_strength = yoga.strength if yoga.strength else 0
         yoga_nature_str = yoga.nature.value if hasattr(yoga.nature, 'value') else str(yoga.nature)
 
