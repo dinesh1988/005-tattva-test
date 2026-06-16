@@ -67,6 +67,7 @@ from api.database import (
     get_db, save_profile, get_profile_by_id, get_profiles_by_user,
     save_daily_prediction, get_daily_prediction,
     save_user_record, get_user_record, invalidate_user_daily_cache,
+    USE_REDIS, REDIS_PROFILE_TTL, _get_redis,
 )
 
 # =============================================================================
@@ -917,6 +918,20 @@ async def get_complete_profile(birth_data: BirthData):
     
     **Perfect for AI/algorithmic prediction systems!**
     """
+    # --- Redis cache check ---
+    import hashlib, json as _json
+    _cache_key = "complete_profile:" + hashlib.sha256(
+        f"{birth_data.birth_date}|{birth_data.birth_time}|{birth_data.birth_place}|{birth_data.timezone}"
+        .encode()
+    ).hexdigest()
+    if USE_REDIS:
+        try:
+            _cached = _get_redis().get(_cache_key)
+            if _cached:
+                return _json.loads(_cached)
+        except Exception:
+            pass  # cache miss / Redis unavailable — proceed to compute
+
     import pytz
     from logic.yogas import get_all_yogas
     from logic.lordship import get_lord_of_house
@@ -1493,7 +1508,7 @@ async def get_complete_profile(birth_data: BirthData):
         yogas_enhanced.append(yoga_dict)
 
     # 10. EXECUTIVE SUMMARY for LLMs
-    active_yogas = [y['name'] for y in yogas_enhanced if y.get('present', False)]
+    active_yogas = [y['name'] for y in yogas_enhanced if y.get('occurring', False)]
 
     executive_summary = {
         'personality_overview': f"{birth_data.name} is a {lagna_rasi} rising individual with {sun_sign} Sun and {moon_sign} Moon. Their personality blends {lagna_interp.get('element', '')} element qualities with {', '.join(lagna_interp.get('traits', [])[:2])} traits.",
@@ -1560,7 +1575,7 @@ async def get_complete_profile(birth_data: BirthData):
     }
     
     # Compile complete LLM-optimized profile
-    return {
+    _result = {
         'name': birth_data.name,
         'birth_data': {
             'date': birth_data.birth_date,
@@ -1608,6 +1623,20 @@ async def get_complete_profile(birth_data: BirthData):
             'life_areas': ['career', 'relationships', 'wealth', 'health', 'spirituality']
         }
     }
+
+    # --- Write to Redis cache ---
+    if USE_REDIS:
+        try:
+            _payload = _json.dumps(_result)
+            r = _get_redis()
+            if REDIS_PROFILE_TTL > 0:
+                r.setex(_cache_key, REDIS_PROFILE_TTL, _payload)
+            else:
+                r.set(_cache_key, _payload)
+        except Exception:
+            pass  # non-fatal — still return the result
+
+    return _result
 
 
 @app.get("/api/v1/channels", tags=["Reference Data"])
