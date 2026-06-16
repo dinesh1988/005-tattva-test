@@ -2352,6 +2352,29 @@
 
         const GOCHARA_URL = () => apiV1('/panchang/gochara');
 
+        // JS session cache — avoids redundant network calls within the same page session.
+        // Backend Redis cache handles cross-session / multi-instance deduplication.
+        const _profileCache = new Map();
+        function _profileCacheKey(d) {
+            return `${d.birth_date}|${d.birth_time}|${d.birth_place}|${d.timezone || ''}`;
+        }
+        async function fetchCompleteProfile(data) {
+            const key = _profileCacheKey(data);
+            if (_profileCache.has(key)) return _profileCache.get(key);
+            const response = await fetch(API_URL(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error((err.detail || err.message) || `API ${response.status}`);
+            }
+            const result = await response.json();
+            _profileCache.set(key, result);
+            return result;
+        }
+
         const DAILY5_URL = () => apiV1('/prediction/daily-5step');
 
 
@@ -3614,19 +3637,10 @@
 
             try {
 
-                const chartResp = await fetch(`${getApiBase()}/profile/complete`, {
-
-                    method: 'POST',
-
-                    headers: { 'Content-Type': 'application/json' },
-
-                    body: JSON.stringify({ name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place })
-
-                });
-
-                if (chartResp.ok) {
-
-                    const chartResult = await chartResp.json();
+                // Use JS session cache -- skips network if this profile was already fetched this session
+                const _cdata = { name: p.name, birth_date: p.birth_date, birth_time: p.birth_time, birth_place: p.birth_place };
+                const chartResult = await fetchCompleteProfile(_cdata).catch(() => null);
+                if (chartResult) {
 
                     chartContext = JSON.stringify(compactChartForAI(chartResult, birth_dt_iso));
 
@@ -6597,9 +6611,7 @@ ${TOOL_GUIDE}`;
 
                     },
 
-                    body: JSON.stringify(data),
-
-                    cache: 'no-store'
+                    body: JSON.stringify(data)
 
                 });
 
